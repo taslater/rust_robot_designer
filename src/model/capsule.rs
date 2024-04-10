@@ -1,6 +1,6 @@
 use eframe::egui;
 use egui::epaint::Shape;
-use egui::{pos2, Color32, Stroke};
+use egui::{pos2, Color32, Stroke, Pos2};
 use geo::{polygon, Polygon};
 use geo::relate::Relate;
 
@@ -119,6 +119,13 @@ impl Capsule {
             return true;
         }
         false
+    }
+
+    pub fn get_center(&self) -> Pos2 {
+        Pos2 {
+            x: (self.x1 + self.x2) / 2.0,
+            y: (self.y1 + self.y2) / 2.0,
+        }
     }
 
     pub fn draw(

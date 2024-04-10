@@ -27,8 +27,9 @@ impl RobotDesignerApp {
                     .on_editing_state_changed(self.editing_state);
             }
             RobotPart::Joint => {
-                self.capsule_editor.clear_selections();
-                // self.joint_editor.on_editing_state_changed(self.editing_state);
+                self.capsule_editor.clear_capsule_selection();
+                self.joint_editor
+                    .on_editing_state_changed(self.editing_state);
             }
         }
     }
@@ -57,19 +58,20 @@ impl eframe::App for RobotDesignerApp {
                 let robot_clicked = ui
                     .radio_value(&mut self.robot_part, RobotPart::Capsule, "Capsule")
                     .clicked();
-            
-                let has_overlapping_capsules = self.capsule_editor.capsules.windows(2).any(|window| {
-                    let capsule1 = &window[0];
-                    let capsule2 = &window[1];
-                    capsule1.intersects_capsule(capsule2)
-                });
-            
+
+                let has_overlapping_capsules =
+                    self.capsule_editor.capsules.windows(2).any(|window| {
+                        let capsule1 = &window[0];
+                        let capsule2 = &window[1];
+                        capsule1.intersects_capsule(capsule2)
+                    });
+
                 ui.scope(|ui| {
                     ui.set_enabled(has_overlapping_capsules);
                     let joint_clicked = ui
                         .radio_value(&mut self.robot_part, RobotPart::Joint, "Joint")
                         .clicked();
-            
+
                     if robot_clicked || (joint_clicked && has_overlapping_capsules) {
                         self.on_editing_state_changed();
                     }
@@ -103,10 +105,14 @@ impl eframe::App for RobotDesignerApp {
 
                     let pointer_pos = response.hover_pos().unwrap_or_default();
 
+                    let capsule_render_data = self
+                        .capsule_editor
+                        .get_capsule_render_data(pointer_pos, self.editing_state);
+
                     self.robot_renderer.set_capsules(
                         self.capsule_editor.capsules.clone(),
                         self.capsule_editor.create_capsule_start_point,
-                        self.capsule_editor.selected_capsule_points.clone(),
+                        capsule_render_data,
                         self.capsule_editor.overlapping_capsules.clone(),
                     );
                     self.robot_renderer
@@ -116,7 +122,6 @@ impl eframe::App for RobotDesignerApp {
                         self.editing_state,
                         pointer_pos,
                         self.capsule_editor.radius,
-                        self.robot_part,
                     );
 
                     match self.robot_part {

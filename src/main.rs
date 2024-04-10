@@ -5,10 +5,10 @@ mod robot_renderer;
 use eframe::egui;
 use egui::{Color32, Frame, Slider, Stroke};
 
+use crate::editor::common::RobotPart;
 use editor::capsule_editor::CapsuleEditor;
 use editor::common::EditingState;
 use editor::joint_editor::JointEditor;
-use crate::editor::common::RobotPart;
 use robot_renderer::RobotRenderer;
 
 pub struct RobotDesignerApp {
@@ -21,7 +21,6 @@ pub struct RobotDesignerApp {
 
 impl RobotDesignerApp {
     fn on_editing_state_changed(&mut self) {
-        println!("State changed to {:?} with robot part {:?}", self.editing_state, self.robot_part);
         match self.robot_part {
             RobotPart::Capsule => {
                 self.capsule_editor
@@ -31,7 +30,6 @@ impl RobotDesignerApp {
                 self.capsule_editor.clear_capsule_selection();
                 self.joint_editor
                     .on_editing_state_changed(self.editing_state);
-                println!("Joint editor selected capsules: {:?}", self.joint_editor.selected_capsules);
             }
         }
     }
@@ -119,11 +117,18 @@ impl eframe::App for RobotDesignerApp {
                     );
                     self.robot_renderer
                         .set_joints(self.joint_editor.joints.clone());
+
+                    self.robot_renderer.set_joint_data(
+                        self.joint_editor.selected_capsules.clone(),
+                    );
+
                     self.robot_renderer.draw(
                         &painter,
                         self.editing_state,
                         pointer_pos,
                         self.capsule_editor.radius,
+                        &self.capsule_editor,
+                        self.robot_part,
                     );
 
                     match self.robot_part {

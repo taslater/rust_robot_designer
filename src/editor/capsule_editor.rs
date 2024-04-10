@@ -382,7 +382,7 @@ impl CapsuleEditor {
             .iter()
             .map(|capsule| {
                 let (circle1_color, circle2_color, body_color) =
-                    self.get_capsule_colors(capsule, pointer_pos, editing_state);
+                    self.get_capsule_colors(capsule, pointer_pos, editing_state, false);
                 CapsuleRenderData {
                     capsule: *capsule,
                     circle1_color,
@@ -393,12 +393,17 @@ impl CapsuleEditor {
             .collect()
     }
 
-    fn get_capsule_colors(
+    pub fn get_capsule_colors(
         &self,
         capsule: &Capsule,
         pointer_pos: Pos2,
         editing_state: EditingState,
+        is_selected: bool,
     ) -> (CapsuleColors, CapsuleColors, CapsuleColors) {
+        if is_selected {
+            return (CapsuleColors::Selected, CapsuleColors::Selected, CapsuleColors::Selected);
+        }
+        
         match editing_state {
             EditingState::Create => (
                 CapsuleColors::Default,

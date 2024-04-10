@@ -21,6 +21,7 @@ pub struct RobotDesignerApp {
 
 impl RobotDesignerApp {
     fn on_editing_state_changed(&mut self) {
+        println!("State changed to {:?} with robot part {:?}", self.editing_state, self.robot_part);
         match self.robot_part {
             RobotPart::Capsule => {
                 self.capsule_editor
@@ -30,6 +31,7 @@ impl RobotDesignerApp {
                 self.capsule_editor.clear_capsule_selection();
                 self.joint_editor
                     .on_editing_state_changed(self.editing_state);
+                println!("Joint editor selected capsules: {:?}", self.joint_editor.selected_capsules);
             }
         }
     }
@@ -165,8 +167,6 @@ impl eframe::App for RobotDesignerApp {
                 }
                 RobotPart::Joint => {
                     // Add joint-specific controls if needed
-                    // self.joint_editor
-                    //     .on_editing_state_changed(self.editing_state);
                 }
             }
         });

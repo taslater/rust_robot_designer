@@ -48,13 +48,16 @@ impl CapsuleColors {
 
 pub struct CapsuleApp {
     capsules: Vec<Capsule>,
+    joints: Vec<Joint>,
     radius: f32,
     is_dragging: bool,
     multiple_radii_selected: bool,
     create_capsule_start_point: Option<Pos2>,
     selected_capsule_points: Vec<(usize, String, f32, f32)>,
     selected_capsules: Vec<(usize, CapsulePtsSelected)>,
+    selected_joints: Vec<usize>,
     capsule_drag_offsets: Vec<Pos2>,
+    joint_drag_offsets: Vec<Pos2>,
     editing_state: EditingState,
     robot_part: RobotPart,
 }
@@ -63,13 +66,16 @@ impl Default for CapsuleApp {
     fn default() -> Self {
         CapsuleApp {
             capsules: Vec::new(),
+            joints: Vec::new(),
             radius: 20.0,
             is_dragging: false,
             multiple_radii_selected: false,
             create_capsule_start_point: None,
             selected_capsule_points: Vec::new(),
             selected_capsules: Vec::new(),
+            selected_joints: Vec::new(),
             capsule_drag_offsets: Vec::new(),
+            joint_drag_offsets: Vec::new(),
             editing_state: EditingState::Create,
             robot_part: RobotPart::Capsule,
         }

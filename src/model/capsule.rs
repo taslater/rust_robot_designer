@@ -1,6 +1,9 @@
 use eframe::egui;
 use egui::epaint::Shape;
 use egui::{pos2, Color32, Stroke};
+use geo::{polygon, Polygon};
+use geo::relate::Relate;
+
 
 #[derive(Debug, Clone, Copy)]
 pub struct Capsule {
@@ -20,10 +23,18 @@ pub enum PointInsideCapsule {
     InsideBody,
 }
 
+fn circles_overlap(x1: f32, y1: f32, r1: f32, x2: f32, y2: f32, r2: f32) -> bool {
+    let dx = x2 - x1;
+    let dy = y2 - y1;
+    let d_squared = dx * dx + dy * dy;
+    let r_sum = r1 + r2;
+    let r_sum_squared = r_sum * r_sum;
+    d_squared < r_sum_squared
+}
+
 const OUTLINE_COLOR: Color32 = Color32::from_rgb(0, 0, 0);
 const OUTLINE_WIDTH: f32 = 1.0;
 impl Capsule {
-
     pub fn is_inside_at_all(&self, x: f32, y: f32) -> bool {
         let dx = self.x2 - self.x1;
         let dy = self.y2 - self.y1;
@@ -64,6 +75,50 @@ impl Capsule {
         } else {
             PointInsideCapsule::InsideBody
         }
+    }
+
+    fn body_to_polygon(&self) -> Polygon<f32> {
+        let dx = self.x2 - self.x1;
+        let dy = self.y2 - self.y1;
+        let angle = dy.atan2(dx);
+        let angle1 = angle + std::f32::consts::FRAC_PI_2;
+        let angle2 = angle - std::f32::consts::FRAC_PI_2;
+        let x1 = self.x1 + self.radius * angle1.cos();
+        let y1 = self.y1 + self.radius * angle1.sin();
+        let x2 = self.x2 + self.radius * angle1.cos();
+        let y2 = self.y2 + self.radius * angle1.sin();
+        let x3 = self.x2 + self.radius * angle2.cos();
+        let y3 = self.y2 + self.radius * angle2.sin();
+        let x4 = self.x1 + self.radius * angle2.cos();
+        let y4 = self.y1 + self.radius * angle2.sin();
+        polygon![
+            (x: x1, y: y1),
+            (x: x2, y: y2),
+            (x: x3, y: y3),
+            (x: x4, y: y4),
+            (x: x1, y: y1),
+        ]
+    }
+
+    pub fn intersects_capsule(&self, other: &Capsule) -> bool {
+        let body_poly1 = self.body_to_polygon();
+        let body_poly2 = other.body_to_polygon();
+        if body_poly1.relate(&body_poly2).is_overlaps() {
+            return true;
+        }
+        if circles_overlap(self.x1, self.y1, self.radius, other.x1, other.y1, other.radius) {
+            return true;
+        }
+        if circles_overlap(self.x1, self.y1, self.radius, other.x2, other.y2, other.radius) {
+            return true;
+        }
+        if circles_overlap(self.x2, self.y2, self.radius, other.x1, other.y1, other.radius) {
+            return true;
+        }
+        if circles_overlap(self.x2, self.y2, self.radius, other.x2, other.y2, other.radius) {
+            return true;
+        }
+        false
     }
 
     pub fn draw(

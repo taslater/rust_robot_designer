@@ -166,4 +166,37 @@ impl Capsule {
             circle2_color,
         ));
     }
+
+    pub fn draw_one_color(&self, painter: &egui::Painter, color: Color32) {
+        painter.add(Shape::line_segment(
+            [pos2(self.x1, self.y1), pos2(self.x2, self.y2)],
+            Stroke::new(self.radius * 2.0, color),
+        ));
+        painter.add(Shape::line_segment(
+            [pos2(self.x1, self.y1), pos2(self.x2, self.y2)],
+            Stroke::new((self.radius - OUTLINE_WIDTH) * 2.0, color),
+        ));
+
+        painter.add(Shape::circle_filled(
+            pos2(self.x1, self.y1),
+            self.radius,
+            color,
+        ));
+        painter.add(Shape::circle_filled(
+            pos2(self.x1, self.y1),
+            self.radius - OUTLINE_WIDTH,
+            color,
+        ));
+
+        painter.add(Shape::circle_filled(
+            pos2(self.x2, self.y2),
+            self.radius,
+            color,
+        ));
+        painter.add(Shape::circle_filled(
+            pos2(self.x2, self.y2),
+            self.radius - OUTLINE_WIDTH,
+            color,
+        ));
+    }
 }

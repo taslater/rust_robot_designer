@@ -1,34 +1,40 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 mod editor;
 mod model;
 mod robot_renderer;
 
+
 use eframe::egui;
 use egui::{Color32, Frame, Slider, Stroke};
 
-use crate::editor::common::RobotPart;
-use editor::capsule_editor::CapsuleEditor;
+use crate::editor::common::EditingPart;
+// use editor::capsule_editor::CapsuleEditor;
 use editor::common::EditingState;
-use editor::joint_editor::JointEditor;
-use robot_renderer::RobotRenderer;
+// use editor::joint_editor::JointEditor;
+use editor::robot_editor::RobotEditor;
+// use robot_renderer::RobotRenderer;
+use model::robot::Robot;
 
 pub struct RobotDesignerApp {
-    capsule_editor: CapsuleEditor,
-    joint_editor: JointEditor,
-    robot_part: RobotPart,
+    editing_part: EditingPart,
     editing_state: EditingState,
-    robot_renderer: RobotRenderer,
+    robot: Rc<RefCell<Robot>>,
+    robot_editor: RobotEditor,
 }
 
 impl RobotDesignerApp {
     fn on_editing_state_changed(&mut self) {
-        match self.robot_part {
-            RobotPart::Capsule => {
-                self.capsule_editor
+        match self.editing_part {
+            EditingPart::Capsule => {
+                self.robot_editor
+                    .capsule_editor
                     .on_editing_state_changed(self.editing_state);
             }
-            RobotPart::Joint => {
-                self.capsule_editor.clear_capsule_selection();
-                self.joint_editor
+            EditingPart::Joint => {
+                self.robot_editor.capsule_editor.clear_capsule_selection();
+                self.robot_editor
+                    .joint_editor
                     .on_editing_state_changed(self.editing_state);
             }
         }
@@ -37,13 +43,12 @@ impl RobotDesignerApp {
 
 impl Default for RobotDesignerApp {
     fn default() -> Self {
+        let robot = Rc::new(RefCell::new(Robot::new()));
         RobotDesignerApp {
-            capsule_editor: CapsuleEditor::default(),
-            joint_editor: JointEditor::default(),
-            robot_part: RobotPart::Capsule,
+            editing_part: EditingPart::Capsule,
             editing_state: EditingState::Create,
-            // capsule_radius: 20.0,
-            robot_renderer: RobotRenderer::new(),
+            robot: robot.clone(),
+            robot_editor: RobotEditor::new(robot),
         }
     }
 }
@@ -56,11 +61,17 @@ impl eframe::App for RobotDesignerApp {
             ui.horizontal(|ui| {
                 ui.label("Part Type:");
                 let robot_clicked = ui
-                    .radio_value(&mut self.robot_part, RobotPart::Capsule, "Capsule")
+                    .radio_value(&mut self.editing_part, EditingPart::Capsule, "Capsule")
                     .clicked();
 
-                let has_overlapping_capsules =
-                    self.capsule_editor.capsules.windows(2).any(|window| {
+                let has_overlapping_capsules = self
+                    .robot_editor
+                    .capsule_editor
+                    .robot
+                    .borrow()
+                    .capsules
+                    .windows(2)
+                    .any(|window| {
                         let capsule1 = &window[0];
                         let capsule2 = &window[1];
                         capsule1.intersects_capsule(capsule2)
@@ -69,7 +80,7 @@ impl eframe::App for RobotDesignerApp {
                 ui.scope(|ui| {
                     ui.set_enabled(has_overlapping_capsules);
                     let joint_clicked = ui
-                        .radio_value(&mut self.robot_part, RobotPart::Joint, "Joint")
+                        .radio_value(&mut self.editing_part, EditingPart::Joint, "Joint")
                         .clicked();
 
                     if robot_clicked || (joint_clicked && has_overlapping_capsules) {
@@ -105,72 +116,107 @@ impl eframe::App for RobotDesignerApp {
 
                     let pointer_pos = response.hover_pos().unwrap_or_default();
 
-                    let capsule_render_data = self
-                        .capsule_editor
-                        .get_capsule_render_data(pointer_pos, self.editing_state);
+                    // let capsule_render_data = self
+                    //     .capsule_editor
+                    //     .get_capsule_render_data(pointer_pos, self.editing_state);
 
-                    self.robot_renderer.set_capsules(
-                        self.capsule_editor.capsules.clone(),
-                        self.capsule_editor.create_capsule_start_point,
-                        capsule_render_data,
-                        self.capsule_editor.overlapping_capsules.clone(),
-                    );
-                    self.robot_renderer
-                        .set_joints(self.joint_editor.joints.clone());
+                    // self.robot_renderer.set_capsules(
+                    //     self.capsule_editor.capsules.clone(),
+                    //     self.capsule_editor.create_capsule_start_point,
+                    //     capsule_render_data,
+                    //     self.capsule_editor.overlapping_capsules.clone(),
+                    // );
+                    // self.robot_renderer
+                    //     .set_joints(self.joint_editor.joints.clone());
 
-                    self.robot_renderer.set_joint_data(
-                        self.joint_editor.selected_capsules.clone(),
-                    );
+                    // self.robot_renderer.set_joint_data(
+                    //     self.joint_editor.selected_capsules.clone(),
+                    // );
 
-                    self.robot_renderer.draw(
+                    // self.robot_renderer.draw(
+                    //     &painter,
+                    //     self.editing_state,
+                    //     pointer_pos,
+                    //     self.capsule_editor.radius,
+                    //     &self.capsule_editor,
+                    //     self.robot_part,
+                    // );
+
+                    // let robot_editor = RobotEditor::new();
+
+                    // self.robot_renderer.draw(
+                    //     &painter,
+                    //     &self.robot_renderer.robot,
+                    //     &self.robot_editor,
+                    //     self.editing_state,
+                    //     self.editing_part,
+                    //     pointer_pos,
+                    //     self.capsule_editor.radius,
+                    // );
+
+                    self.robot_editor.draw_editor(
                         &painter,
-                        self.editing_state,
+                        &self.robot.borrow(),
                         pointer_pos,
-                        self.capsule_editor.radius,
-                        &self.capsule_editor,
-                        self.robot_part,
+                        self.editing_state,
+                        self.editing_part,
+                        self.robot_editor.capsule_editor.radius,
                     );
+                    println!("Robot capsules: {:?}", self.robot.borrow().capsules);
+                    println!("Robot joints: {:?}", self.robot.borrow().joints);
+                    self.robot.borrow().draw(&painter);
 
-                    match self.robot_part {
-                        RobotPart::Capsule => {
-                            self.capsule_editor.update(
-                                ui,
-                                ctx,
-                                &mut self.editing_state,
-                                pointer_pos,
-                                &response,
-                            );
-                        }
-                        RobotPart::Joint => {
-                            self.joint_editor.update(
-                                ui,
-                                // ctx,
-                                &mut self.editing_state,
-                                pointer_pos,
-                                &response,
-                                &self.capsule_editor.capsules,
-                            );
-                        }
-                    }
+                    // match self.editing_part {
+                    //     EditingPart::Capsule => {
+                    //         self.robot_editor.capsule_editor.update(
+                    //             ui,
+                    //             ctx,
+                    //             &mut self.editing_state,
+                    //             pointer_pos,
+                    //             &response,
+                    //         );
+                    //     }
+                    //     EditingPart::Joint => {
+                    //         self.robot_editor.joint_editor.update(
+                    //             ui,
+                    //             // ctx,
+                    //             &mut self.editing_state,
+                    //             pointer_pos,
+                    //             &response,
+                    //             &self.robot_editor.capsule_editor.capsules.borrow(),
+                    //         );
+                    //     }
+                    // }
+                    self.robot_editor.update(
+                        ui,
+                        ctx,
+                        pointer_pos,
+                        self.editing_part,
+                        self.editing_state,
+                        &response,
+                    );
                 });
 
-            match self.robot_part {
-                RobotPart::Capsule => {
+            match self.editing_part {
+                EditingPart::Capsule => {
                     let slider_response = ui.add(
-                        Slider::new(&mut self.capsule_editor.radius, 10.0..=30.0)
+                        Slider::new(&mut self.robot_editor.capsule_editor.radius, 10.0..=30.0)
                             .text("Capsule radius"),
                     );
 
                     if slider_response.changed() {
-                        self.capsule_editor
-                            .on_capsule_radius_slider_changed(self.capsule_editor.radius);
+                        self.robot_editor
+                            .capsule_editor
+                            .on_capsule_radius_slider_changed(
+                                self.robot_editor.capsule_editor.radius,
+                            );
                     }
 
                     if slider_response.hovered() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
                     }
                 }
-                RobotPart::Joint => {
+                EditingPart::Joint => {
                     // Add joint-specific controls if needed
                 }
             }

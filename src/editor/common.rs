@@ -6,7 +6,7 @@ pub enum EditingState {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum RobotPart {
+pub enum EditingPart {
     Capsule,
     Joint,
 }

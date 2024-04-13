@@ -33,7 +33,6 @@ impl RobotEditor {
             EditingPart::Capsule => {
                 self.capsule_editor.draw_editor(
                     painter,
-                    robot,
                     pointer_pos,
                     editing_state,
                     capsule_radius,

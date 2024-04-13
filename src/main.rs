@@ -2,18 +2,14 @@ use std::cell::RefCell;
 use std::rc::Rc;
 mod editor;
 mod model;
-mod robot_renderer;
 
 
 use eframe::egui;
 use egui::{Color32, Frame, Slider, Stroke};
 
 use crate::editor::common::EditingPart;
-// use editor::capsule_editor::CapsuleEditor;
 use editor::common::EditingState;
-// use editor::joint_editor::JointEditor;
 use editor::robot_editor::RobotEditor;
-// use robot_renderer::RobotRenderer;
 use model::robot::Robot;
 
 pub struct RobotDesignerApp {
@@ -116,44 +112,7 @@ impl eframe::App for RobotDesignerApp {
 
                     let pointer_pos = response.hover_pos().unwrap_or_default();
 
-                    // let capsule_render_data = self
-                    //     .capsule_editor
-                    //     .get_capsule_render_data(pointer_pos, self.editing_state);
-
-                    // self.robot_renderer.set_capsules(
-                    //     self.capsule_editor.capsules.clone(),
-                    //     self.capsule_editor.create_capsule_start_point,
-                    //     capsule_render_data,
-                    //     self.capsule_editor.overlapping_capsules.clone(),
-                    // );
-                    // self.robot_renderer
-                    //     .set_joints(self.joint_editor.joints.clone());
-
-                    // self.robot_renderer.set_joint_data(
-                    //     self.joint_editor.selected_capsules.clone(),
-                    // );
-
-                    // self.robot_renderer.draw(
-                    //     &painter,
-                    //     self.editing_state,
-                    //     pointer_pos,
-                    //     self.capsule_editor.radius,
-                    //     &self.capsule_editor,
-                    //     self.robot_part,
-                    // );
-
-                    // let robot_editor = RobotEditor::new();
-
-                    // self.robot_renderer.draw(
-                    //     &painter,
-                    //     &self.robot_renderer.robot,
-                    //     &self.robot_editor,
-                    //     self.editing_state,
-                    //     self.editing_part,
-                    //     pointer_pos,
-                    //     self.capsule_editor.radius,
-                    // );
-
+                    self.robot.borrow().draw(&painter);
                     self.robot_editor.draw_editor(
                         &painter,
                         &self.robot.borrow(),
@@ -162,31 +121,8 @@ impl eframe::App for RobotDesignerApp {
                         self.editing_part,
                         self.robot_editor.capsule_editor.radius,
                     );
-                    println!("Robot capsules: {:?}", self.robot.borrow().capsules);
-                    println!("Robot joints: {:?}", self.robot.borrow().joints);
-                    self.robot.borrow().draw(&painter);
+                    
 
-                    // match self.editing_part {
-                    //     EditingPart::Capsule => {
-                    //         self.robot_editor.capsule_editor.update(
-                    //             ui,
-                    //             ctx,
-                    //             &mut self.editing_state,
-                    //             pointer_pos,
-                    //             &response,
-                    //         );
-                    //     }
-                    //     EditingPart::Joint => {
-                    //         self.robot_editor.joint_editor.update(
-                    //             ui,
-                    //             // ctx,
-                    //             &mut self.editing_state,
-                    //             pointer_pos,
-                    //             &response,
-                    //             &self.robot_editor.capsule_editor.capsules.borrow(),
-                    //         );
-                    //     }
-                    // }
                     self.robot_editor.update(
                         ui,
                         ctx,

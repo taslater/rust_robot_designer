@@ -115,7 +115,6 @@ impl eframe::App for RobotDesignerApp {
                     self.robot.borrow().draw(&painter);
                     self.robot_editor.draw_editor(
                         &painter,
-                        &self.robot.borrow(),
                         pointer_pos,
                         self.editing_state,
                         self.editing_part,

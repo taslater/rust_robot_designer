@@ -275,24 +275,17 @@ impl CapsuleEditor {
     }
 
     fn handle_dragging(&mut self, response: &egui::Response, pointer_pos: Pos2) {
-        if response.dragged() && !self.selected_capsules.is_empty() {
+        if response.clicked() && !self.selected_capsules.is_empty() {
             if self.is_drag_start_inside_selected(pointer_pos) {
-                if !self.is_dragging {
-                    self.set_drag_offsets(pointer_pos);
-                    self.start_dragging();
-                }
-                self.drag_capsules(pointer_pos);
+                self.set_drag_offsets(pointer_pos);
+                self.start_dragging();
             }
+        } else if response.dragged() && self.is_dragging {
+            self.drag_capsules(pointer_pos);
         } else if response.drag_stopped() {
             self.update_selected_capsule_points();
             self.stop_dragging();
         }
-    }
-
-    fn update_capsules(&mut self, ctx: &egui::Context, pointer_pos: Pos2) {
-        self.handle_capsule_selection(ctx, pointer_pos);
-        self.update_selected_capsules();
-        self.update_overlapping_capsules();
     }
 
     fn set_drag_offsets(&mut self, pointer_pos: Pos2) {
@@ -319,6 +312,12 @@ impl CapsuleEditor {
                 capsule.radius = new_radius;
             }
         }
+    }
+
+    fn update_capsules(&mut self, ctx: &egui::Context, pointer_pos: Pos2) {
+        self.handle_capsule_selection(ctx, pointer_pos);
+        self.update_selected_capsules();
+        self.update_overlapping_capsules();
     }
 
     pub fn update(
@@ -474,19 +473,6 @@ impl CapsuleEditor {
         (endcap1_color, endcap2_color, body_color)
     }
 
-    // pub fn draw_editor(
-    //     &self,
-    //     painter: &egui::Painter,
-    //     robot: &Robot,
-    //     pointer_pos: Pos2,
-    //     editing_state: EditingState,
-    //     capsule_radius: f32,
-    // ) {
-    //     self.draw_selected_capsules(painter, robot);
-    //     self.draw_overlapping_capsules(painter, robot);
-    //     self.draw_editing_visualization(painter, robot, pointer_pos, editing_state, capsule_radius);
-    // }
-
     pub fn draw_editor(
         &self,
         painter: &egui::Painter,
@@ -517,6 +503,11 @@ impl CapsuleEditor {
                 endcap2_color.to_color32(),
                 body_color.to_color32(),
             );
+        }
+
+        // Draw joints
+        for joint in &robot.joints {
+            joint.draw(painter, Color32::BLUE);
         }
 
         self.draw_overlapping_capsules(painter);

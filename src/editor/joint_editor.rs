@@ -217,12 +217,48 @@ impl JointEditor {
     pub fn draw_editor(
         &self,
         painter: &egui::Painter,
-        robot: &Robot,
         pointer_pos: Pos2,
         editing_state: EditingState,
     ) {
-        self.draw_selected_joints(painter, robot);
-        self.draw_editing_visualization(painter, robot, pointer_pos, editing_state);
+        let robot = match self.robot.try_borrow() {
+            Ok(robot) => robot,
+            Err(_) => {
+                eprintln!("Could not borrow robot");
+                return;
+            }
+        };
+    
+        self.draw_selected_capsules(painter, &robot);
+        self.draw_joint_visualization(painter, &robot, pointer_pos);
+        self.draw_editing_visualization(painter, pointer_pos, editing_state);
+    }
+
+    fn draw_selected_capsules(&self, painter: &egui::Painter, robot: &Robot) {
+        for capsule_id in &self.selected_capsules {
+            if let Some(capsule) = robot.capsules.iter().find(|c| c.id == *capsule_id) {
+                capsule.draw_one_color(painter, Color32::LIGHT_RED);
+            }
+        }
+    }
+
+    fn draw_joint_visualization(
+        &self,
+        painter: &egui::Painter,
+        robot: &Robot,
+        pointer_pos: Pos2,
+    ) {
+        if self.selected_capsules.len() == 2 {
+            let capsule1 = robot.capsules.iter().find(|c| c.id == self.selected_capsules[0]);
+            let capsule2 = robot.capsules.iter().find(|c| c.id == self.selected_capsules[1]);
+    
+            if let (Some(capsule1), Some(capsule2)) = (capsule1, capsule2) {
+                if self.check_joint_placement(pointer_pos, &robot.capsules) {
+                    painter.circle_filled(pointer_pos, 5.0, Color32::GREEN);
+                } else {
+                    painter.circle_filled(pointer_pos, 5.0, Color32::GRAY);
+                }
+            }
+        }
     }
 
     fn draw_selected_joints(&self, painter: &egui::Painter, robot: &Robot) {
@@ -236,25 +272,29 @@ impl JointEditor {
     fn draw_editing_visualization(
         &self,
         painter: &egui::Painter,
-        robot: &Robot,
         pointer_pos: Pos2,
         editing_state: EditingState,
     ) {
         match editing_state {
-            EditingState::Create => {
-                self.draw_create_joint_visualization(painter, robot, pointer_pos)
-            }
-            EditingState::Update => self.draw_update_visualization(painter, robot, pointer_pos),
-            EditingState::Delete => self.draw_delete_visualization(painter, robot, pointer_pos),
+            EditingState::Create => self.draw_create_joint_visualization(painter, pointer_pos),
+            EditingState::Update => self.draw_update_visualization(painter, pointer_pos),
+            EditingState::Delete => self.draw_delete_visualization(painter, pointer_pos),
         }
     }
 
     fn draw_create_joint_visualization(
         &self,
         painter: &egui::Painter,
-        robot: &Robot,
         pointer_pos: Pos2,
     ) {
+        let robot = match self.robot.try_borrow() {
+            Ok(robot) => robot,
+            Err(_) => {
+                eprintln!("Could not borrow robot");
+                return;
+            }
+        };
+    
         if self.selected_capsules.len() == 2 {
             if let (Some(capsule1), Some(capsule2)) = (
                 robot.capsules.get(self.selected_capsules[0]),
@@ -270,11 +310,11 @@ impl JointEditor {
         painter.circle_stroke(pointer_pos, 5.0, Stroke::new(2.0, Color32::GREEN));
     }
 
-    fn draw_update_visualization(&self, painter: &egui::Painter, robot: &Robot, pointer_pos: Pos2) {
+    fn draw_update_visualization(&self, painter: &egui::Painter, pointer_pos: Pos2) {
         // TODO: Implement update visualization for joints
     }
 
-    fn draw_delete_visualization(&self, painter: &egui::Painter, robot: &Robot, pointer_pos: Pos2) {
+    fn draw_delete_visualization(&self, painter: &egui::Painter, pointer_pos: Pos2) {
         // TODO: Implement delete visualization for joints
     }
 }

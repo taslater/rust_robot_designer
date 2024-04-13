@@ -23,7 +23,6 @@ impl RobotEditor {
     pub fn draw_editor(
         &self,
         painter: &egui::Painter,
-        robot: &Robot,
         pointer_pos: Pos2,
         editing_state: EditingState,
         editing_part: EditingPart,
@@ -39,7 +38,7 @@ impl RobotEditor {
                 );
             }
             EditingPart::Joint => {
-                self.joint_editor.draw_editor(painter, robot, pointer_pos, editing_state);
+                self.joint_editor.draw_editor(painter, pointer_pos, editing_state);
             }
         }
     }

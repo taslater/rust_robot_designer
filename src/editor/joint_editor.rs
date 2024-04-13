@@ -227,7 +227,7 @@ impl JointEditor {
                 return;
             }
         };
-    
+
         self.draw_selected_capsules(painter, &robot);
         self.draw_joint_visualization(painter, &robot, pointer_pos);
         self.draw_editing_visualization(painter, pointer_pos, editing_state);
@@ -241,22 +241,12 @@ impl JointEditor {
         }
     }
 
-    fn draw_joint_visualization(
-        &self,
-        painter: &egui::Painter,
-        robot: &Robot,
-        pointer_pos: Pos2,
-    ) {
+    fn draw_joint_visualization(&self, painter: &egui::Painter, robot: &Robot, pointer_pos: Pos2) {
         if self.selected_capsules.len() == 2 {
-            let capsule1 = robot.capsules.iter().find(|c| c.id == self.selected_capsules[0]);
-            let capsule2 = robot.capsules.iter().find(|c| c.id == self.selected_capsules[1]);
-    
-            if let (Some(capsule1), Some(capsule2)) = (capsule1, capsule2) {
-                if self.check_joint_placement(pointer_pos, &robot.capsules) {
-                    painter.circle_filled(pointer_pos, 5.0, Color32::GREEN);
-                } else {
-                    painter.circle_filled(pointer_pos, 5.0, Color32::GRAY);
-                }
+            if self.check_joint_placement(pointer_pos, &robot.capsules) {
+                painter.circle_filled(pointer_pos, 5.0, Color32::GREEN);
+            } else {
+                painter.circle_filled(pointer_pos, 5.0, Color32::GRAY);
             }
         }
     }
@@ -282,11 +272,7 @@ impl JointEditor {
         }
     }
 
-    fn draw_create_joint_visualization(
-        &self,
-        painter: &egui::Painter,
-        pointer_pos: Pos2,
-    ) {
+    fn draw_create_joint_visualization(&self, painter: &egui::Painter, pointer_pos: Pos2) {
         let robot = match self.robot.try_borrow() {
             Ok(robot) => robot,
             Err(_) => {
@@ -294,7 +280,7 @@ impl JointEditor {
                 return;
             }
         };
-    
+
         if self.selected_capsules.len() == 2 {
             if let (Some(capsule1), Some(capsule2)) = (
                 robot.capsules.get(self.selected_capsules[0]),

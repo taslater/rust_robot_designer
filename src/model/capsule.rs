@@ -1,9 +1,8 @@
 use eframe::egui;
 use egui::epaint::Shape;
-use egui::{pos2, Color32, Stroke, Pos2};
-use geo::{polygon, Polygon};
+use egui::{pos2, Color32, Pos2, Stroke};
 use geo::relate::Relate;
-
+use geo::{polygon, Polygon};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Capsule {
@@ -23,6 +22,11 @@ pub enum PointInsideCapsule {
     InsideBody,
 }
 
+pub enum PointType {
+    Pt1,
+    Pt2,
+}
+
 fn circles_overlap(x1: f32, y1: f32, r1: f32, x2: f32, y2: f32, r2: f32) -> bool {
     let dx = x2 - x1;
     let dy = y2 - y1;
@@ -34,6 +38,7 @@ fn circles_overlap(x1: f32, y1: f32, r1: f32, x2: f32, y2: f32, r2: f32) -> bool
 
 const OUTLINE_COLOR: Color32 = Color32::from_rgb(0, 0, 0);
 const OUTLINE_WIDTH: f32 = 1.0;
+
 impl Capsule {
     pub fn is_inside_at_all(&self, x: f32, y: f32) -> bool {
         let dx = self.x2 - self.x1;
@@ -106,16 +111,44 @@ impl Capsule {
         if body_poly1.relate(&body_poly2).is_overlaps() {
             return true;
         }
-        if circles_overlap(self.x1, self.y1, self.radius, other.x1, other.y1, other.radius) {
+        if circles_overlap(
+            self.x1,
+            self.y1,
+            self.radius,
+            other.x1,
+            other.y1,
+            other.radius,
+        ) {
             return true;
         }
-        if circles_overlap(self.x1, self.y1, self.radius, other.x2, other.y2, other.radius) {
+        if circles_overlap(
+            self.x1,
+            self.y1,
+            self.radius,
+            other.x2,
+            other.y2,
+            other.radius,
+        ) {
             return true;
         }
-        if circles_overlap(self.x2, self.y2, self.radius, other.x1, other.y1, other.radius) {
+        if circles_overlap(
+            self.x2,
+            self.y2,
+            self.radius,
+            other.x1,
+            other.y1,
+            other.radius,
+        ) {
             return true;
         }
-        if circles_overlap(self.x2, self.y2, self.radius, other.x2, other.y2, other.radius) {
+        if circles_overlap(
+            self.x2,
+            self.y2,
+            self.radius,
+            other.x2,
+            other.y2,
+            other.radius,
+        ) {
             return true;
         }
         false
@@ -166,37 +199,23 @@ impl Capsule {
             circle2_color,
         ));
     }
+}
 
-    pub fn draw_one_color(&self, painter: &egui::Painter, color: Color32) {
-        painter.add(Shape::line_segment(
-            [pos2(self.x1, self.y1), pos2(self.x2, self.y2)],
-            Stroke::new(self.radius * 2.0, color),
-        ));
-        painter.add(Shape::line_segment(
-            [pos2(self.x1, self.y1), pos2(self.x2, self.y2)],
-            Stroke::new((self.radius - OUTLINE_WIDTH) * 2.0, color),
-        ));
+#[derive(Debug, Clone, Copy)]
+pub enum CapsuleColors {
+    Default,
+    Highlighted,
+    Selected,
+    Add,
+}
 
-        painter.add(Shape::circle_filled(
-            pos2(self.x1, self.y1),
-            self.radius,
-            color,
-        ));
-        painter.add(Shape::circle_filled(
-            pos2(self.x1, self.y1),
-            self.radius - OUTLINE_WIDTH,
-            color,
-        ));
-
-        painter.add(Shape::circle_filled(
-            pos2(self.x2, self.y2),
-            self.radius,
-            color,
-        ));
-        painter.add(Shape::circle_filled(
-            pos2(self.x2, self.y2),
-            self.radius - OUTLINE_WIDTH,
-            color,
-        ));
+impl CapsuleColors {
+    pub fn to_color32(&self) -> Color32 {
+        match self {
+            CapsuleColors::Default => Color32::GREEN,
+            CapsuleColors::Highlighted => Color32::LIGHT_BLUE,
+            CapsuleColors::Selected => Color32::LIGHT_RED,
+            CapsuleColors::Add => Color32::from_rgb(230, 230, 250),
+        }
     }
 }

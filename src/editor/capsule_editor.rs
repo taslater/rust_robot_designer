@@ -1,5 +1,5 @@
 use super::common::EditingState;
-use crate::model::capsule::{Capsule, PointInsideCapsule};
+use crate::model::capsule::{CapsuleColors, PointType};
 use crate::model::robot::Robot;
 use eframe::egui;
 use egui::{Color32, Pos2, Shape, Stroke};
@@ -10,8 +10,8 @@ use std::rc::Rc;
 pub struct SelectedCapsulePoint {
     pub capsule_id: usize,
     pub point_type: String,
-    x: f32,
-    y: f32,
+    pub x: f32,
+    pub y: f32,
 }
 
 struct SelectedCapsule {
@@ -25,21 +25,14 @@ pub struct OverlappingCapsules {
     pub capsule2_id: usize,
 }
 
-// pub struct CapsuleRenderData {
-//     pub capsule: Capsule,
-//     pub circle1_color: CapsuleColors,
-//     pub circle2_color: CapsuleColors,
-//     pub body_color: CapsuleColors,
-// }
-
 pub struct CapsuleEditor {
-    pub robot: Rc<RefCell<Robot>>,
+    robot: Rc<RefCell<Robot>>,
     pub radius: f32,
     is_dragging: bool,
-    pub create_capsule_start_point: Option<Pos2>,
-    pub selected_capsule_points: Vec<SelectedCapsulePoint>,
+    create_capsule_start_point: Option<Pos2>,
+    selected_capsule_points: Vec<SelectedCapsulePoint>,
     selected_capsules: Vec<SelectedCapsule>,
-    pub overlapping_capsules: Vec<OverlappingCapsules>,
+    overlapping_capsules: Vec<OverlappingCapsules>,
     capsule_drag_offsets: Vec<Pos2>,
 }
 
@@ -61,16 +54,7 @@ impl CapsuleEditor {
         if let Some(start_point) = self.create_capsule_start_point {
             match self.robot.try_borrow_mut() {
                 Ok(mut robot) => {
-                    let id = robot.capsules.len();
-                    let capsule = Capsule {
-                        id,
-                        radius: self.radius,
-                        x1: start_point.x,
-                        y1: start_point.y,
-                        x2: pointer_pos.x,
-                        y2: pointer_pos.y,
-                    };
-                    robot.capsules.push(capsule);
+                    robot.add_capsule(start_point, pointer_pos, self.radius);
                 }
                 Err(_) => eprintln!("Could not borrow robot mutably"),
             }
@@ -83,36 +67,51 @@ impl CapsuleEditor {
     fn delete_capsules(&mut self, pointer_pos: Pos2) {
         self.robot
             .borrow_mut()
-            .capsules
-            .retain(|capsule| !capsule.is_inside_at_all(pointer_pos.x, pointer_pos.y));
+            .remove_capsules_by_point(pointer_pos.x, pointer_pos.y);
     }
 
     fn drag_capsules(&mut self, pointer_pos: Pos2) {
         for (index, selected_capsule) in self.selected_capsules.iter().enumerate() {
-            if let Some(capsule) = self
-                .robot
-                .borrow_mut()
-                .capsules
-                .get_mut(selected_capsule.capsule_id)
-            {
-                let offset = self.capsule_drag_offsets[index];
-                match selected_capsule.selection_type {
-                    CapsulePtsSelected::Circle1 => {
-                        capsule.x1 = pointer_pos.x - offset.x;
-                        capsule.y1 = pointer_pos.y - offset.y;
-                    }
-                    CapsulePtsSelected::Circle2 => {
-                        capsule.x2 = pointer_pos.x - offset.x;
-                        capsule.y2 = pointer_pos.y - offset.y;
-                    }
-                    CapsulePtsSelected::Body => {
-                        let dx = pointer_pos.x - offset.x - capsule.x1;
-                        let dy = pointer_pos.y - offset.y - capsule.y1;
-                        capsule.x1 += dx;
-                        capsule.y1 += dy;
-                        capsule.x2 += dx;
-                        capsule.y2 += dy;
-                    }
+            let offset = self.capsule_drag_offsets[index];
+            match selected_capsule.selection_type {
+                CapsulePtsSelected::Circle1 => {
+                    self.robot.borrow_mut().update_capsule_endcap(
+                        selected_capsule.capsule_id,
+                        PointType::Pt1,
+                        pointer_pos.x - offset.x,
+                        pointer_pos.y - offset.y,
+                    );
+                }
+                CapsulePtsSelected::Circle2 => {
+                    self.robot.borrow_mut().update_capsule_endcap(
+                        selected_capsule.capsule_id,
+                        PointType::Pt2,
+                        pointer_pos.x - offset.x,
+                        pointer_pos.y - offset.y,
+                    );
+                }
+                CapsulePtsSelected::Body => {
+                    let dx = pointer_pos.x
+                        - offset.x
+                        - self
+                            .robot
+                            .borrow()
+                            .get_capsule(selected_capsule.capsule_id)
+                            .unwrap()
+                            .x1;
+                    let dy = pointer_pos.y
+                        - offset.y
+                        - self
+                            .robot
+                            .borrow()
+                            .get_capsule(selected_capsule.capsule_id)
+                            .unwrap()
+                            .y1;
+                    self.robot.borrow_mut().update_capsule_body(
+                        selected_capsule.capsule_id,
+                        dx,
+                        dy,
+                    );
                 }
             }
         }
@@ -166,92 +165,58 @@ impl CapsuleEditor {
     }
 
     fn update_overlapping_capsules(&mut self) {
-        let mut overlapping_capsules: Vec<OverlappingCapsules> = Vec::new();
-        for (i, capsule1) in self.robot.borrow().capsules.iter().enumerate() {
-            for (j, capsule2) in self.robot.borrow().capsules.iter().enumerate() {
-                if i < j && capsule1.intersects_capsule(capsule2) {
-                    overlapping_capsules.push(OverlappingCapsules {
-                        capsule1_id: i,
-                        capsule2_id: j,
-                    });
-                }
+        // let mut overlapping_capsules: Vec<OverlappingCapsules> = Vec::new();
+        // for (i, capsule1) in self.robot.borrow().capsules.iter().enumerate() {
+        //     for (j, capsule2) in self.robot.borrow().capsules.iter().enumerate() {
+        //         if i < j && capsule1.intersects_capsule(capsule2) {
+        //             overlapping_capsules.push(OverlappingCapsules {
+        //                 capsule1_id: i,
+        //                 capsule2_id: j,
+        //             });
+        //         }
+        //     }
+        // }
+        let robot = match self.robot.try_borrow() {
+            Ok(robot) => robot,
+            Err(_) => {
+                eprintln!("Could not borrow robot");
+                return;
             }
-        }
-        self.overlapping_capsules = overlapping_capsules;
+        };
+        self.overlapping_capsules = robot.get_overlapping_capsules();
     }
 
     fn handle_capsule_selection(&mut self, ctx: &egui::Context, pointer_pos: Pos2) {
-        let clicked_points: Vec<SelectedCapsulePoint> = self
+        let clicked_points = self
             .robot
             .borrow()
-            .capsules
-            .iter()
-            .flat_map(|capsule| {
-                let inside_detail = capsule.is_inside_detail(pointer_pos.x, pointer_pos.y);
-                match inside_detail {
-                    PointInsideCapsule::InsideEndcap1 => {
-                        vec![SelectedCapsulePoint {
-                            capsule_id: capsule.id,
-                            point_type: "x1".to_string(),
-                            x: capsule.x1,
-                            y: capsule.y1,
-                        }]
-                    }
-                    PointInsideCapsule::InsideEndcap2 => {
-                        vec![SelectedCapsulePoint {
-                            capsule_id: capsule.id,
-                            point_type: "x2".to_string(),
-                            x: capsule.x2,
-                            y: capsule.y2,
-                        }]
-                    }
-                    PointInsideCapsule::InsideBody => {
-                        vec![
-                            SelectedCapsulePoint {
-                                capsule_id: capsule.id,
-                                point_type: "x1".to_string(),
-                                x: capsule.x1,
-                                y: capsule.y1,
-                            },
-                            SelectedCapsulePoint {
-                                capsule_id: capsule.id,
-                                point_type: "x2".to_string(),
-                                x: capsule.x2,
-                                y: capsule.y2,
-                            },
-                        ]
-                    }
-                    _ => vec![],
-                }
-            })
-            .collect();
+            .find_capsule_points_at_position(pointer_pos);
 
         if clicked_points.is_empty() {
             self.clear_capsule_selection();
         } else if ctx.input(|i| i.modifiers.shift) {
-            for clicked_point in &clicked_points {
-                if let Some(index) = self.selected_capsule_points.iter().position(|point| {
-                    point.capsule_id == clicked_point.capsule_id
-                        && point.point_type == clicked_point.point_type
-                }) {
-                    self.selected_capsule_points.remove(index);
-                } else {
-                    self.selected_capsule_points.push(clicked_point.clone());
-                }
-            }
+            self.toggle_selected_capsule_points(&clicked_points);
         } else {
             self.selected_capsule_points = clicked_points;
         }
     }
 
+    fn toggle_selected_capsule_points(&mut self, clicked_points: &[SelectedCapsulePoint]) {
+        for clicked_point in clicked_points {
+            if let Some(index) = self.selected_capsule_points.iter().position(|point| {
+                point.capsule_id == clicked_point.capsule_id
+                    && point.point_type == clicked_point.point_type
+            }) {
+                self.selected_capsule_points.remove(index);
+            } else {
+                self.selected_capsule_points.push(clicked_point.clone());
+            }
+        }
+    }
+
     fn is_drag_start_inside_selected(&self, pointer_pos: Pos2) -> bool {
         for selected_capsule in &self.selected_capsules {
-            if let Some(capsule) = self
-                .robot
-                .borrow()
-                .capsules
-                .get(selected_capsule.capsule_id)
-            {
+            if let Some(capsule) = self.robot.borrow().get_capsule(selected_capsule.capsule_id) {
                 match selected_capsule.selection_type {
                     CapsulePtsSelected::Circle1 => {
                         if capsule.is_inside_circle1(pointer_pos.x, pointer_pos.y) {
@@ -308,9 +273,9 @@ impl CapsuleEditor {
 
     fn set_selected_capsules_radius(&mut self, new_radius: f32) {
         for capsule in &mut self.selected_capsules {
-            if let Some(capsule) = self.robot.borrow_mut().capsules.get_mut(capsule.capsule_id) {
-                capsule.radius = new_radius;
-            }
+            self.robot
+                .borrow_mut()
+                .update_capsule_radius(capsule.capsule_id, new_radius);
         }
     }
 
@@ -357,32 +322,16 @@ impl CapsuleEditor {
             .selected_capsule_points
             .iter()
             .map(|point| {
-                if let Some(capsule) = self
+                if let Some((x, y)) = self
                     .robot
                     .borrow()
-                    .capsules
-                    .iter()
-                    .find(|c| c.id == point.capsule_id)
+                    .get_capsule_point(point.capsule_id, &point.point_type)
                 {
-                    match point.point_type.as_str() {
-                        "x1" => SelectedCapsulePoint {
-                            capsule_id: point.capsule_id,
-                            point_type: point.point_type.clone(),
-                            x: capsule.x1,
-                            y: capsule.y1,
-                        },
-                        "x2" => SelectedCapsulePoint {
-                            capsule_id: point.capsule_id,
-                            point_type: point.point_type.clone(),
-                            x: capsule.x2,
-                            y: capsule.y2,
-                        },
-                        _ => SelectedCapsulePoint {
-                            capsule_id: point.capsule_id,
-                            point_type: point.point_type.clone(),
-                            x: capsule.x1,
-                            y: capsule.y1,
-                        },
+                    SelectedCapsulePoint {
+                        capsule_id: point.capsule_id,
+                        point_type: point.point_type.clone(),
+                        x,
+                        y,
                     }
                 } else {
                     point.clone()
@@ -397,80 +346,6 @@ impl CapsuleEditor {
                 self.clear_capsule_selection();
             }
         }
-    }
-
-    // pub fn get_capsule_render_data(
-    //     &self,
-    //     pointer_pos: Pos2,
-    //     editing_state: EditingState,
-    // ) -> Vec<CapsuleRenderData> {
-    //     let selected_capsule_ids: Vec<usize> = self
-    //         .selected_capsules
-    //         .iter()
-    //         .map(|capsule| capsule.capsule_id)
-    //         .collect();
-
-    //     self.robot
-    //         .borrow()
-    //         .capsules
-    //         .iter()
-    //         .map(|capsule| {
-    //             let (circle1_color, circle2_color, body_color) =
-    //                 self.get_capsule_colors(capsule, pointer_pos, editing_state, &selected_capsule_ids);
-    //             CapsuleRenderData {
-    //                 capsule: *capsule,
-    //                 circle1_color,
-    //                 circle2_color,
-    //                 body_color,
-    //             }
-    //         })
-    //         .collect()
-    // }
-
-    pub fn get_capsule_colors(
-        &self,
-        capsule: &Capsule,
-        pointer_pos: Pos2,
-        // editing_state: EditingState,
-        // selected_capsule_ids: &[usize],
-    ) -> (CapsuleColors, CapsuleColors, CapsuleColors) {
-        let is_endcap1_selected = self
-            .selected_capsule_points
-            .iter()
-            .any(|point| point.capsule_id == capsule.id && point.point_type == "x1");
-        let is_endcap2_selected = self
-            .selected_capsule_points
-            .iter()
-            .any(|point| point.capsule_id == capsule.id && point.point_type == "x2");
-
-        let is_endcap1_hovered = capsule.is_inside_circle1(pointer_pos.x, pointer_pos.y);
-        let is_endcap2_hovered = capsule.is_inside_circle2(pointer_pos.x, pointer_pos.y);
-
-        let endcap1_color = if is_endcap1_selected {
-            CapsuleColors::Selected
-        } else if is_endcap1_hovered {
-            CapsuleColors::Highlighted
-        } else {
-            CapsuleColors::Default
-        };
-
-        let endcap2_color = if is_endcap2_selected {
-            CapsuleColors::Selected
-        } else if is_endcap2_hovered {
-            CapsuleColors::Highlighted
-        } else {
-            CapsuleColors::Default
-        };
-
-        let body_color = if is_endcap1_selected && is_endcap2_selected {
-            CapsuleColors::Selected
-        } else if is_endcap1_hovered && is_endcap2_hovered {
-            CapsuleColors::Highlighted
-        } else {
-            CapsuleColors::Default
-        };
-
-        (endcap1_color, endcap2_color, body_color)
     }
 
     pub fn draw_editor(
@@ -488,65 +363,42 @@ impl CapsuleEditor {
             }
         };
 
-        // let selected_capsule_ids: Vec<usize> = self
-        //     .selected_capsule_points
-        //     .iter()
-        //     .map(|p| p.capsule_id)
-        //     .collect();
+        let selected_capsule_points: Vec<usize> = self
+            .selected_capsule_points
+            .iter()
+            .map(|point| point.capsule_id * 2 + if point.point_type == "x1" { 0 } else { 1 })
+            .collect();
 
-        for capsule in &robot.capsules {
-            let (endcap1_color, endcap2_color, body_color) =
-                self.get_capsule_colors(capsule, pointer_pos);
-            capsule.draw(
-                painter,
-                endcap1_color.to_color32(),
-                endcap2_color.to_color32(),
-                body_color.to_color32(),
-            );
-        }
+        let hovered_capsule_points = robot.find_hovered_capsule_points(pointer_pos);
 
-        // Draw joints
-        for joint in &robot.joints {
-            joint.draw(painter, Color32::BLUE);
-        }
+        let selected_joints = vec![];
+        let hovered_joints = vec![];
+
+        robot.draw(
+            painter,
+            &selected_capsule_points,
+            &hovered_capsule_points,
+            &selected_joints,
+            &hovered_joints,
+        );
 
         self.draw_overlapping_capsules(painter);
         self.draw_editing_visualization(painter, pointer_pos, editing_state, capsule_radius);
     }
 
-    // fn draw_selected_capsules(&self, painter: &egui::Painter) {
-    //     for capsule_id in &self.selected_capsule_points {
-    //         match self.robot.try_borrow() {
-    //             Ok(robot) => {
-    //                 if let Some(capsule) = robot
-    //                     .capsules
-    //                     .iter()
-    //                     .find(|c| c.id == capsule_id.capsule_id)
-    //                 {
-    //                     capsule.draw_one_color(painter, Color32::LIGHT_RED);
-    //                 }
-    //             }
-    //             Err(_) => eprintln!("Could not borrow robot"),
-    //         }
-    //     }
-    // }
-
     fn draw_overlapping_capsules(&self, painter: &egui::Painter) {
-        match self.robot.try_borrow() {
-            Ok(robot) => {
-                for overlapping in &self.overlapping_capsules {
-                    if let (Some(capsule1), Some(capsule2)) = (
-                        robot.capsules.get(overlapping.capsule1_id),
-                        robot.capsules.get(overlapping.capsule2_id),
-                    ) {
-                        painter.line_segment(
-                            [capsule1.get_center(), capsule2.get_center()],
-                            Stroke::new(2.0, Color32::RED),
-                        );
-                    }
+        if let Ok(robot) = self.robot.try_borrow() {
+            for overlapping in &self.overlapping_capsules {
+                if let (Some(capsule1), Some(capsule2)) = (
+                    robot.get_capsule(overlapping.capsule1_id),
+                    robot.get_capsule(overlapping.capsule2_id),
+                ) {
+                    painter.line_segment(
+                        [capsule1.get_center(), capsule2.get_center()],
+                        Stroke::new(2.0, Color32::RED),
+                    );
                 }
             }
-            Err(_) => eprintln!("Could not borrow robot"),
         }
     }
 
@@ -592,38 +444,6 @@ impl CapsuleEditor {
     fn draw_delete_visualization(&self, painter: &egui::Painter, pointer_pos: Pos2) {
         // TODO: Implement delete visualization for capsules
     }
-
-    // fn draw_update_visualization(
-    //     &self,
-    //     painter: &egui::Painter,
-    //     pointer_pos: Pos2,
-    // ) {
-    //     match self.robot.try_borrow() {
-    //         Ok(robot) => {
-    //             for capsule in &robot.capsules {
-    //                 if capsule.is_inside_at_all(pointer_pos.x, pointer_pos.y) {
-    //                     let stroke = Stroke::new(2.0, Color32::LIGHT_BLUE);
-    //                     painter.rect_stroke(capsule.get_rect(), 5.0, stroke);
-    //                 }
-    //             }
-    //         }
-    //         Err(_) => eprintln!("Could not borrow robot"),
-    //     }
-    // }
-
-    // fn draw_delete_visualization(
-    //     &self,
-    //     painter: &egui::Painter,
-    //     robot: &Robot,
-    //     pointer_pos: Pos2,
-    // ) {
-    //     for capsule in &robot.borrow().capsules {
-    //         if capsule.is_inside_at_all(pointer_pos.x, pointer_pos.y) {
-    //             let stroke = Stroke::new(2.0, Color32::RED);
-    //             painter.rect_stroke(capsule.get_rect(), 5.0, stroke);
-    //         }
-    //     }
-    // }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -631,23 +451,4 @@ pub enum CapsulePtsSelected {
     Circle1,
     Circle2,
     Body,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum CapsuleColors {
-    Default,
-    Highlighted,
-    Selected,
-    Add,
-}
-
-impl CapsuleColors {
-    pub fn to_color32(&self) -> Color32 {
-        match self {
-            CapsuleColors::Default => Color32::GREEN,
-            CapsuleColors::Highlighted => Color32::LIGHT_BLUE,
-            CapsuleColors::Selected => Color32::LIGHT_RED,
-            CapsuleColors::Add => Color32::from_rgb(230, 230, 250),
-        }
-    }
 }

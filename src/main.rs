@@ -60,18 +60,7 @@ impl eframe::App for RobotDesignerApp {
                     .radio_value(&mut self.editing_part, EditingPart::Capsule, "Capsule")
                     .clicked();
 
-                let has_overlapping_capsules = self
-                    .robot_editor
-                    .capsule_editor
-                    .robot
-                    .borrow()
-                    .capsules
-                    .windows(2)
-                    .any(|window| {
-                        let capsule1 = &window[0];
-                        let capsule2 = &window[1];
-                        capsule1.intersects_capsule(capsule2)
-                    });
+                let has_overlapping_capsules = self.robot.borrow().has_overlapping_capsules();
 
                 ui.scope(|ui| {
                     ui.set_enabled(has_overlapping_capsules);
@@ -112,7 +101,7 @@ impl eframe::App for RobotDesignerApp {
 
                     let pointer_pos = response.hover_pos().unwrap_or_default();
 
-                    self.robot.borrow().draw(&painter);
+                    // self.robot.borrow().draw(&painter);
                     self.robot_editor.draw_editor(
                         &painter,
                         pointer_pos,

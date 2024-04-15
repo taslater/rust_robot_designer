@@ -28,7 +28,6 @@ pub struct OverlappingCapsules {
 pub struct CapsuleEditor {
     robot: Rc<RefCell<Robot>>,
     pub radius: f32,
-    is_dragging: bool,
     create_capsule_start_point: Option<Pos2>,
     selected_capsule_points: Vec<SelectedCapsulePoint>,
     selected_capsules: Vec<SelectedCapsule>,
@@ -41,7 +40,6 @@ impl CapsuleEditor {
         CapsuleEditor {
             robot,
             radius: 20.0,
-            is_dragging: false,
             create_capsule_start_point: None,
             selected_capsule_points: Vec::new(),
             selected_capsules: Vec::new(),
@@ -68,53 +66,6 @@ impl CapsuleEditor {
         self.robot
             .borrow_mut()
             .remove_capsules_by_point(pointer_pos.x, pointer_pos.y);
-    }
-
-    fn drag_capsules(&mut self, pointer_pos: Pos2) {
-        for (index, selected_capsule) in self.selected_capsules.iter().enumerate() {
-            let offset = self.capsule_drag_offsets[index];
-            match selected_capsule.selection_type {
-                CapsulePtsSelected::Circle1 => {
-                    self.robot.borrow_mut().update_capsule_endcap(
-                        selected_capsule.capsule_id,
-                        PointType::Pt1,
-                        pointer_pos.x - offset.x,
-                        pointer_pos.y - offset.y,
-                    );
-                }
-                CapsulePtsSelected::Circle2 => {
-                    self.robot.borrow_mut().update_capsule_endcap(
-                        selected_capsule.capsule_id,
-                        PointType::Pt2,
-                        pointer_pos.x - offset.x,
-                        pointer_pos.y - offset.y,
-                    );
-                }
-                CapsulePtsSelected::Body => {
-                    let dx = pointer_pos.x
-                        - offset.x
-                        - self
-                            .robot
-                            .borrow()
-                            .get_capsule(selected_capsule.capsule_id)
-                            .unwrap()
-                            .x1;
-                    let dy = pointer_pos.y
-                        - offset.y
-                        - self
-                            .robot
-                            .borrow()
-                            .get_capsule(selected_capsule.capsule_id)
-                            .unwrap()
-                            .y1;
-                    self.robot.borrow_mut().update_capsule_body(
-                        selected_capsule.capsule_id,
-                        dx,
-                        dy,
-                    );
-                }
-            }
-        }
     }
 
     pub fn on_capsule_radius_slider_changed(&mut self, new_radius: f32) {
@@ -165,17 +116,6 @@ impl CapsuleEditor {
     }
 
     fn update_overlapping_capsules(&mut self) {
-        // let mut overlapping_capsules: Vec<OverlappingCapsules> = Vec::new();
-        // for (i, capsule1) in self.robot.borrow().capsules.iter().enumerate() {
-        //     for (j, capsule2) in self.robot.borrow().capsules.iter().enumerate() {
-        //         if i < j && capsule1.intersects_capsule(capsule2) {
-        //             overlapping_capsules.push(OverlappingCapsules {
-        //                 capsule1_id: i,
-        //                 capsule2_id: j,
-        //             });
-        //         }
-        //     }
-        // }
         let robot = match self.robot.try_borrow() {
             Ok(robot) => robot,
             Err(_) => {
@@ -240,15 +180,14 @@ impl CapsuleEditor {
     }
 
     fn handle_dragging(&mut self, response: &egui::Response, pointer_pos: Pos2) {
-        if response.clicked() && !self.selected_capsules.is_empty() {
-            if self.is_drag_start_inside_selected(pointer_pos) {
-                self.set_drag_offsets(pointer_pos);
-                self.start_dragging();
-            }
-        } else if response.dragged() && self.is_dragging {
+        if response.drag_started()
+            && !self.selected_capsules.is_empty()
+            && self.is_drag_start_inside_selected(pointer_pos)
+        {
+            self.set_drag_offsets(pointer_pos);
+        } else if response.dragged() {
             self.drag_capsules(pointer_pos);
         } else if response.drag_stopped() {
-            self.update_selected_capsule_points();
             self.stop_dragging();
         }
     }
@@ -261,14 +200,57 @@ impl CapsuleEditor {
             .collect();
     }
 
-    fn start_dragging(&mut self) {
-        self.is_dragging = true;
-    }
-
     fn stop_dragging(&mut self) {
-        self.is_dragging = false;
+        self.update_selected_capsule_points();
         self.capsule_drag_offsets.clear();
         self.update_overlapping_capsules();
+    }
+
+    fn drag_capsules(&mut self, pointer_pos: Pos2) {
+        for (index, selected_capsule) in self.selected_capsules.iter().enumerate() {
+            let offset = self.capsule_drag_offsets[index];
+            match selected_capsule.selection_type {
+                CapsulePtsSelected::Circle1 => {
+                    self.robot.borrow_mut().update_capsule_endcap(
+                        selected_capsule.capsule_id,
+                        PointType::Pt1,
+                        pointer_pos.x - offset.x,
+                        pointer_pos.y - offset.y,
+                    );
+                }
+                CapsulePtsSelected::Circle2 => {
+                    self.robot.borrow_mut().update_capsule_endcap(
+                        selected_capsule.capsule_id,
+                        PointType::Pt2,
+                        pointer_pos.x - offset.x,
+                        pointer_pos.y - offset.y,
+                    );
+                }
+                CapsulePtsSelected::Body => {
+                    let dx = pointer_pos.x
+                        - offset.x
+                        - self
+                            .robot
+                            .borrow()
+                            .get_capsule(selected_capsule.capsule_id)
+                            .unwrap()
+                            .x1;
+                    let dy = pointer_pos.y
+                        - offset.y
+                        - self
+                            .robot
+                            .borrow()
+                            .get_capsule(selected_capsule.capsule_id)
+                            .unwrap()
+                            .y1;
+                    self.robot.borrow_mut().update_capsule_body(
+                        selected_capsule.capsule_id,
+                        dx,
+                        dy,
+                    );
+                }
+            }
+        }
     }
 
     fn set_selected_capsules_radius(&mut self, new_radius: f32) {

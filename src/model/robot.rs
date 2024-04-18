@@ -1,9 +1,19 @@
 // robot.rs
-use crate::editor::capsule_editor::{OverlappingCapsules, SelectedCapsulePoint};
-use crate::model::capsule::{Capsule, CapsuleColors, PointInsideCapsule, PointType};
+use super::capsule::{
+    self, Capsule, CapsuleColors, CapsulePoint, CapsulePointId, PointInsideCapsule, PointType,
+};
+use crate::editor::capsule_editor::OverlappingCapsules;
 use crate::model::joint::Joint;
 use eframe::egui;
 use egui::{Color32, Pos2};
+
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+static CAPSULE_ID_COUNTER: AtomicUsize = AtomicUsize::new(1);
+
+fn generate_capsule_id() -> usize {
+    CAPSULE_ID_COUNTER.fetch_add(1, Ordering::SeqCst)
+}
 
 #[derive(Debug)]
 pub struct Robot {
@@ -19,18 +29,30 @@ impl Robot {
         }
     }
 
-    pub fn get_capsule_count(&self) -> usize {
-        self.capsules.len()
-    }
+    // pub fn get_capsule_count(&self) -> usize {
+    //     self.capsules.len()
+    // }
 
     pub fn add_capsule(&mut self, start_point: Pos2, pointer_pos: Pos2, radius: f32) {
         let capsule = Capsule {
-            id: self.get_capsule_count(),
-            radius: radius,
-            x1: start_point.x,
-            y1: start_point.y,
-            x2: pointer_pos.x,
-            y2: pointer_pos.y,
+            id: generate_capsule_id(),
+            radius,
+            point1: CapsulePoint {
+                capsule_point_id: CapsulePointId {
+                    capsule_id: generate_capsule_id(),
+                    point_type: PointType::Pt1,
+                },
+                x: start_point.x,
+                y: start_point.y,
+            },
+            point2: CapsulePoint {
+                capsule_point_id: CapsulePointId {
+                    capsule_id: generate_capsule_id(),
+                    point_type: PointType::Pt2,
+                },
+                x: pointer_pos.x,
+                y: pointer_pos.y,
+            },
         };
         self.capsules.push(capsule);
     }
@@ -50,27 +72,52 @@ impl Robot {
     //     }
     // }
 
-    pub fn update_capsule_endcap(&mut self, capsule_id: usize, point_type: PointType, x: f32, y: f32) {
+    pub fn move_endcap(&mut self, capsule_id: usize, point_type: PointType, x: f32, y: f32) {
         if let Some(capsule) = self.capsules.get_mut(capsule_id) {
-            match point_type {
-                PointType::Pt1 => {
-                    capsule.x1 = x;
-                    capsule.y1 = y;
-                }
-                PointType::Pt2 => {
-                    capsule.x2 = x;
-                    capsule.y2 = y;
-                }
-            }
+            capsule.update_point_pos(point_type, x, y);
         }
     }
 
     pub fn update_capsule_body(&mut self, capsule_id: usize, dx: f32, dy: f32) {
         if let Some(capsule) = self.capsules.get_mut(capsule_id) {
-            capsule.x1 += dx;
-            capsule.y1 += dy;
-            capsule.x2 += dx;
-            capsule.y2 += dy;
+            capsule.point1.x += dx;
+            capsule.point1.y += dy;
+            capsule.point2.x += dx;
+            capsule.point2.y += dy;
+        }
+    }
+
+    // fn get_capsule_point_by_id(&mut self, capsule_point_id: CapsulePointId) -> Option<&CapsulePoint> {
+    //     if let Some(capsule) = self.capsules.get_mut(capsule_point_id.capsule_id) {
+    //         match capsule_point_id.point_type {
+    //             PointType::Pt1 => Some(&CapsulePoint {
+    //                 capsule_point_id,
+    //                 // x: capsule.x1,
+    //                 // y: capsule.y1,
+    //                 x: capsule.point1.x,
+    //                 y: capsule.point1.y,
+    //             }),
+    //             PointType::Pt2 => Some(&CapsulePoint {
+    //                 capsule_point_id,
+    //                 // x: capsule.x2,
+    //                 // y: capsule.y2,
+    //                 x: capsule.point2.x,
+    //                 y: capsule.point2.y,
+    //             }),
+    //         }
+    //     } else {
+    //         None
+    //     }
+    // }
+
+    pub fn update_capsule_point_pos(
+        &mut self,
+        capsule_point_id: CapsulePointId,
+        x: f32,
+        y: f32,
+    ) {
+        if let Some(capsule) = self.capsules.get_mut(capsule_point_id.capsule_id) {
+            capsule.update_point_pos(capsule_point_id.point_type, x, y);
         }
     }
 
@@ -84,12 +131,22 @@ impl Robot {
         self.capsules.iter().find(|c| c.id == capsule_id)
     }
 
-    pub fn get_capsule_point(&self, capsule_id: usize, point_type: &str) -> Option<(f32, f32)> {
-        if let Some(capsule) = self.capsules.get(capsule_id) {
-            match point_type {
-                "x1" => Some((capsule.x1, capsule.y1)),
-                "x2" => Some((capsule.x2, capsule.y2)),
-                _ => None,
+    pub fn get_capsule_point(
+        &self,
+        // capsule_id: usize,
+        // point_type: &PointType,
+        capsule_point_id: CapsulePointId,
+    ) -> Option<CapsulePointId> {
+        if let Some(capsule) = self.capsules.get(capsule_point_id.capsule_id) {
+            match capsule_point_id.point_type {
+                PointType::Pt1 => Some(CapsulePointId {
+                    capsule_id: capsule.id,
+                    point_type: PointType::Pt1,
+                }),
+                PointType::Pt2 => Some(CapsulePointId {
+                    capsule_id: capsule.id,
+                    point_type: PointType::Pt2,
+                }),
             }
         } else {
             None
@@ -104,17 +161,32 @@ impl Robot {
         })
     }
 
-    fn find_capsule_points_at_position_internal(&self, pointer_pos: Pos2) -> Vec<(usize, String)> {
+    fn find_capsule_points_at_position_internal(&self, pointer_pos: Pos2) -> Vec<CapsulePointId> {
         self.capsules
             .iter()
             .enumerate()
             .flat_map(|(index, capsule)| {
                 let inside_detail = capsule.is_inside_detail(pointer_pos.x, pointer_pos.y);
                 match inside_detail {
-                    PointInsideCapsule::InsideEndcap1 => vec![(index, "x1".to_string())],
-                    PointInsideCapsule::InsideEndcap2 => vec![(index, "x2".to_string())],
+                    PointInsideCapsule::InsideEndcap1 => vec![CapsulePointId {
+                        capsule_id: index,
+                        point_type: PointType::Pt1,
+                    }],
+                    PointInsideCapsule::InsideEndcap2 => vec![CapsulePointId {
+                        capsule_id: index,
+                        point_type: PointType::Pt2,
+                    }],
                     PointInsideCapsule::InsideBody => {
-                        vec![(index, "x1".to_string()), (index, "x2".to_string())]
+                        vec![
+                            CapsulePointId {
+                                capsule_id: index,
+                                point_type: PointType::Pt1,
+                            },
+                            CapsulePointId {
+                                capsule_id: index,
+                                point_type: PointType::Pt2,
+                            },
+                        ]
                     }
                     _ => vec![],
                 }
@@ -122,33 +194,83 @@ impl Robot {
             .collect()
     }
 
-    pub fn find_capsule_points_at_position(&self, pointer_pos: Pos2) -> Vec<SelectedCapsulePoint> {
+    // pub fn find_capsule_points_at_position(&self, pointer_pos: Pos2) -> Vec<CapsulePoint> {
+    //     self.find_capsule_points_at_position_internal(pointer_pos)
+    //         .iter()
+    //         .map(
+    //             |CapsulePointId {
+    //                  capsule_id,
+    //                  point_type,
+    //              }| {
+    //                 let capsule = self.get_capsule(*capsule_id).unwrap();
+    //                 let x = match point_type {
+    //                     // PointType::Pt1 => capsule.x1,
+    //                     // PointType::Pt2 => capsule.x2,
+    //                     PointType::Pt1 => capsule.point1.x,
+    //                     PointType::Pt2 => capsule.point2.x,
+    //                 };
+    //                 let y = match point_type {
+    //                     // PointType::Pt1 => capsule.y1,
+    //                     // PointType::Pt2 => capsule.y2,
+    //                     PointType::Pt1 => capsule.point1.y,
+    //                     PointType::Pt2 => capsule.point2.y,
+    //                 };
+    //                 CapsulePoint {
+    //                     capsule_point_id: CapsulePointId {
+    //                         capsule_id: *capsule_id,
+    //                         point_type: *point_type,
+    //                     },
+    //                     x,
+    //                     y,
+    //                 }
+    //             },
+    //         )
+    //         .collect()
+    // }
+
+    pub fn find_capsule_points_at_position(&self, pointer_pos: Pos2) -> Vec<CapsulePoint> {
         self.find_capsule_points_at_position_internal(pointer_pos)
             .iter()
-            .map(|(index, point_type)| {
-                let capsule = &self.capsules[*index];
-                SelectedCapsulePoint {
-                    capsule_id: capsule.id,
-                    point_type: point_type.clone(),
-                    x: if point_type == "x1" {
-                        capsule.x1
-                    } else {
-                        capsule.x2
-                    },
-                    y: if point_type == "x1" {
-                        capsule.y1
-                    } else {
-                        capsule.y2
-                    },
-                }
-            })
+            .filter_map(
+                |CapsulePointId {
+                     capsule_id,
+                     point_type,
+                 }| {
+                    self.get_capsule(*capsule_id).and_then(|capsule| {
+                        let x = match point_type {
+                            PointType::Pt1 => capsule.point1.x,
+                            PointType::Pt2 => capsule.point2.x,
+                        };
+                        let y = match point_type {
+                            PointType::Pt1 => capsule.point1.y,
+                            PointType::Pt2 => capsule.point2.y,
+                        };
+                        Some(CapsulePoint {
+                            capsule_point_id: CapsulePointId {
+                                capsule_id: *capsule_id,
+                                point_type: *point_type,
+                            },
+                            x,
+                            y,
+                        })
+                    })
+                },
+            )
             .collect()
     }
 
-    pub fn find_hovered_capsule_points(&self, pointer_pos: Pos2) -> Vec<usize> {
+    pub fn find_hovered_capsule_points(&self, pointer_pos: Pos2) -> Vec<CapsulePointId> {
         self.find_capsule_points_at_position_internal(pointer_pos)
             .iter()
-            .map(|(index, point_type)| index * 2 + if point_type == "x1" { 0 } else { 1 })
+            .map(
+                |CapsulePointId {
+                     capsule_id,
+                     point_type,
+                 }| CapsulePointId {
+                    capsule_id: *capsule_id,
+                    point_type: *point_type,
+                },
+            )
             .collect()
     }
 
@@ -225,10 +347,10 @@ impl Robot {
     pub fn draw(
         &self,
         painter: &egui::Painter,
-        selected_capsule_points: &[usize],
-        hovered_capsule_points: &[usize],
-        selected_joints: &[usize],
-        hovered_joints: &[usize],
+        selected_capsule_points: &Vec<usize>,
+        hovered_capsule_points: &Vec<usize>,
+        selected_joints: &Vec<usize>,
+        hovered_joints: &Vec<usize>,
     ) {
         for (index, capsule) in self.capsules.iter().enumerate() {
             let (circle1_color, circle2_color, body_color) =
@@ -299,7 +421,6 @@ impl Robot {
         }
     }
 }
-
 
 trait HasPosition {
     fn is_inside(&self, x: f32, y: f32) -> bool;

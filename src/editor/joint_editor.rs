@@ -261,25 +261,26 @@ impl JointEditor {
     ) {
         match editing_state {
             EditingState::Create => self.draw_create_joint_visualization(painter, pointer_pos),
+            // EditingState::Create => {},
             EditingState::Update => self.draw_update_visualization(painter, pointer_pos),
             EditingState::Delete => self.draw_delete_visualization(painter, pointer_pos),
         }
     }
 
     fn draw_create_joint_visualization(&self, painter: &egui::Painter, pointer_pos: Pos2) {
-        if self.selected_capsules.len() == 2 {
-            if let Ok(robot) = self.robot.try_borrow() {
-                if let (Some(capsule1), Some(capsule2)) = (
-                    robot.get_capsule(self.selected_capsules[0]),
-                    robot.get_capsule(self.selected_capsules[1]),
-                ) {
-                    painter.line_segment(
-                        [capsule1.get_center(), capsule2.get_center()],
-                        Stroke::new(2.0, Color32::GREEN),
-                    );
-                }
-            }
-        }
+        // if self.selected_capsules.len() == 2 {
+        //     if let Ok(robot) = self.robot.try_borrow() {
+        //         if let (Some(capsule1), Some(capsule2)) = (
+        //             robot.get_capsule(self.selected_capsules[0]),
+        //             robot.get_capsule(self.selected_capsules[1]),
+        //         ) {
+        //             painter.line_segment(
+        //                 [capsule1.get_center(), capsule2.get_center()],
+        //                 Stroke::new(2.0, Color32::GREEN),
+        //             );
+        //         }
+        //     }
+        // }
         painter.circle_stroke(pointer_pos, 5.0, Stroke::new(2.0, Color32::GREEN));
     }
 

@@ -19,11 +19,11 @@ struct RobotDesignerApp {
 impl Default for RobotDesignerApp {
     fn default() -> Self {
         let robot = Rc::new(RefCell::new(Robot::new()));
-        let mut dock_state = DockState::new(vec!["Editor".to_owned()]);
-
-        // Add additional tabs here
-        // dock_state.main_surface_mut().split_right(NodeIndex::root(), 0.5, vec!["Simulator".to_owned()]);
-        // dock_state.main_surface_mut().split_right(NodeIndex::root(), 0.5, vec!["Trainer".to_owned()]);
+        let dock_state = DockState::new(vec![
+            "Editor".to_owned(),
+            "Simulator".to_owned(),
+            "Trainer".to_owned(),
+        ]);
 
         RobotDesignerApp {
             robot: robot.clone(),
@@ -51,6 +51,28 @@ struct RobotDesignerTabViewer<'a> {
     ctx: &'a egui::Context,
 }
 
+impl<'a> RobotDesignerTabViewer<'a> {
+    fn draw_simulator_ui(&self, ui: &mut egui::Ui, robot: &Robot) {
+        egui::Frame::canvas(ui.style()).show(ui, |ui| {
+            let (_response, _painter) = ui.allocate_painter(
+                egui::Vec2::new(400.0, 300.0),
+                egui::Sense::click_and_drag(),
+            );
+            ui.label(format!("{:#?}", robot));
+        });
+    }
+
+    fn draw_trainer_ui(&self, ui: &mut egui::Ui, robot: &Robot) {
+        egui::Frame::canvas(ui.style()).show(ui, |ui| {
+            let (_response, _painter) = ui.allocate_painter(
+                egui::Vec2::new(400.0, 300.0),
+                egui::Sense::click_and_drag(),
+            );
+            ui.label(format!("{:#?}", robot));
+        });
+    }
+}
+
 impl<'a> TabViewer for RobotDesignerTabViewer<'a> {
     type Tab = String;
 
@@ -62,6 +84,12 @@ impl<'a> TabViewer for RobotDesignerTabViewer<'a> {
         match &**tab {
             "Editor" => {
                 self.robot_editor.draw_editor_ui(ui, &mut self.robot.borrow_mut(), self.ctx);
+            }
+            "Simulator" => {
+                self.draw_simulator_ui(ui, &self.robot.borrow());
+            }
+            "Trainer" => {
+                self.draw_trainer_ui(ui, &self.robot.borrow());
             }
             _ => {}
         }

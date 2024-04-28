@@ -3,24 +3,19 @@ use crate::model::capsule::{CapsulePointId, PointType};
 use crate::model::joint::Joint;
 use crate::model::robot::Robot;
 use std::collections::HashSet;
-use std::rc::Rc;
-use std::{borrow::Borrow, cell::RefCell};
 
 use eframe::egui;
 use egui::{Color32, Pos2, Stroke};
 
 pub struct JointEditor {
-    robot: Rc<RefCell<Robot>>,
     selected_joints: Vec<usize>,
     selected_capsules: Vec<usize>,
     joint_creation_state: JointCreationState,
 }
 
 impl JointEditor {
-    pub fn new(robot: Rc<RefCell<Robot>>) -> Self {
+    pub fn new() -> Self {
         JointEditor {
-            robot,
-            // selected_joint: None,
             selected_joints: Vec::new(),
             selected_capsules: Vec::new(),
             joint_creation_state: JointCreationState::SelectFirstCapsule,
@@ -33,13 +28,14 @@ impl JointEditor {
         editing_state: &mut EditingState,
         pointer_pos: Pos2,
         response: &egui::Response,
+        robot: &mut Robot,
     ) {
         match *editing_state {
-            EditingState::Create => self.handle_create_joint(pointer_pos, ui, response),
-            EditingState::Delete => self.handle_delete_joint(pointer_pos),
-            EditingState::Update => self.handle_update_joint(pointer_pos),
+            EditingState::Create => self.handle_create_joint(pointer_pos, ui, response, robot),
+            EditingState::Delete => self.handle_delete_joint(pointer_pos, robot),
+            EditingState::Update => self.handle_update_joint(pointer_pos, robot),
         }
-        self.handle_joint_delete_key(ui, pointer_pos);
+        self.handle_joint_delete_key(ui, pointer_pos, robot);
     }
 
     pub fn on_editing_state_changed(&mut self, editing_state: EditingState) {
@@ -63,62 +59,47 @@ impl JointEditor {
         pointer_pos: Pos2,
         ui: &mut egui::Ui,
         response: &egui::Response,
+        robot: &mut Robot,
     ) {
         match self.joint_creation_state {
             JointCreationState::SelectFirstCapsule => {
                 ui.label("Select first capsule");
                 if response.clicked() {
-                    self.update_capsule_selection(pointer_pos, 1, ui);
+                    self.update_capsule_selection(pointer_pos, 1, ui, robot);
                 }
             }
             JointCreationState::SelectSecondCapsule => {
                 ui.label("Select second capsule");
                 if response.clicked() {
-                    self.update_capsule_selection(pointer_pos, 2, ui);
+                    self.update_capsule_selection(pointer_pos, 2, ui, robot);
                 }
             }
             JointCreationState::PlaceJoint => {
                 ui.label("Place joint in the intersection");
                 if response.clicked() {
-                    self.create_joint(pointer_pos, ui);
+                    self.create_joint(pointer_pos, ui, robot);
                 }
             }
         }
     }
 
-    fn handle_delete_joint(&mut self, pointer_pos: Pos2) {
-        self.robot.borrow_mut().remove_joint(pointer_pos);
+    fn handle_delete_joint(&mut self, pointer_pos: Pos2, robot: &mut Robot) {
+        robot.remove_joint(pointer_pos);
     }
 
-    fn handle_update_joint(&mut self, pointer_pos: Pos2) {
-        // self.update_joint_selection(pointer_pos);
-        let robot = match self.robot.try_borrow() {
-            Ok(robot) => robot,
-            Err(_) => {
-                println!("Error: could not borrow the robot to get the capsules in JointEditor::handle_update_joint");
-                return;
-            }
-        };
-        self.selected_joints = robot.borrow().find_joints_by_point(pointer_pos);
+    fn handle_update_joint(&mut self, pointer_pos: Pos2, robot: &mut Robot) {
+        self.selected_joints = robot.find_joints_by_point(pointer_pos);
     }
 
-    fn handle_joint_delete_key(&mut self, ui: &mut egui::Ui, pointer_pos: Pos2) {
+    fn handle_joint_delete_key(&mut self, ui: &mut egui::Ui, pointer_pos: Pos2, robot: &mut Robot) {
         if ui.input(|i| i.key_pressed(egui::Key::Delete)) {
-            self.handle_delete_joint(pointer_pos);
+            self.handle_delete_joint(pointer_pos, robot);
         }
     }
 
-    fn create_joint(&mut self, pointer_pos: Pos2, ui: &mut egui::Ui) {
+    fn create_joint(&mut self, pointer_pos: Pos2, ui: &mut egui::Ui, robot: &mut Robot) {
         println!("Creating joint");
         let mut joint_created = false;
-
-        let mut robot = match self.robot.try_borrow_mut() {
-            Ok(robot) => robot,
-            Err(_) => {
-                println!("Error: could not borrow the robot to get the capsules in JointEditor::create_joint");
-                return;
-            }
-        };
 
         if self.selected_capsules.len() == 2
             && robot.check_joint_placement(pointer_pos, &self.selected_capsules)
@@ -142,8 +123,6 @@ impl JointEditor {
                     ui.label("The second capsule must intersect with the first capsule.");
                 });
         }
-        // stop borrowing the robot
-        drop(robot);
 
         if joint_created {
             self.clear_selections();
@@ -160,64 +139,51 @@ impl JointEditor {
         pointer_pos: Pos2,
         max_selections: usize,
         ui: &mut egui::Ui,
+        robot: &Robot,
     ) {
-        // try to borrow the robot to get the capsules
-        match self.robot.try_borrow() {
-            Ok(robot) => {
-                // let capsules = &robot.capsules;
-                // let clicked_capsule = capsules
-                //     .iter()
-                //     .position(|capsule| capsule.is_inside_at_all(pointer_pos.x, pointer_pos.y));
-                let clicked_capsule_id_set: HashSet<usize> = robot
-                    .borrow()
-                    .find_capsules_by_point(pointer_pos)
-                    .iter()
-                    .map(|capsule_point_id| capsule_point_id.capsule_id)
-                    .collect();
-                let clicked_capsule_ids: Vec<usize> =
-                    clicked_capsule_id_set.iter().cloned().collect();
-                // check if the length of clicked capsules is one
-                // otherwise, return
-                if clicked_capsule_ids.len() != 1 {
-                    ui.label("Only one capsule can be selected at a time.");
-                    return;
-                }
-                let clicked_capsule: Option<usize> = clicked_capsule_ids.get(0).cloned();
+        // let capsules = &robot.capsules;
+        // let clicked_capsule = capsules
+        //     .iter()
+        //     .position(|capsule| capsule.is_inside_at_all(pointer_pos.x, pointer_pos.y));
+        let clicked_capsule_id_set: HashSet<usize> = robot
+            .find_capsules_by_point(pointer_pos)
+            .iter()
+            .map(|capsule_point_id| capsule_point_id.capsule_id)
+            .collect();
+        let clicked_capsule_ids: Vec<usize> = clicked_capsule_id_set.iter().cloned().collect();
+        // check if the length of clicked capsules is one
+        // otherwise, return
+        if clicked_capsule_ids.len() != 1 {
+            ui.label("Only one capsule can be selected at a time.");
+            return;
+        }
+        let clicked_capsule: Option<usize> = clicked_capsule_ids.get(0).cloned();
 
-                if let Some(capsule_id) = clicked_capsule {
-                    if self.selected_capsules.contains(&capsule_id) {
-                        // Deselect the capsule if it's already selected
-                        self.selected_capsules.retain(|&id| id != capsule_id);
-                    } else if (self.selected_capsules.len() == 1)
-                        && (robot
-                            .are_capsules_already_joined(self.selected_capsules[0], capsule_id))
-                    {
-                        println!("The capsules are already joined.");
-                        return;
-                    } else if self.selected_capsules.len() < max_selections {
-                        self.selected_capsules.push(capsule_id);
-                    }
+        if let Some(capsule_id) = clicked_capsule {
+            if self.selected_capsules.contains(&capsule_id) {
+                // Deselect the capsule if it's already selected
+                self.selected_capsules.retain(|&id| id != capsule_id);
+            } else if (self.selected_capsules.len() == 1)
+                && (robot.are_capsules_already_joined(self.selected_capsules[0], capsule_id))
+            {
+                println!("The capsules are already joined.");
+                return;
+            } else if self.selected_capsules.len() < max_selections {
+                self.selected_capsules.push(capsule_id);
+            }
 
-                    if self.selected_capsules.len() == max_selections {
-                        self.joint_creation_state = match self.joint_creation_state {
-                            JointCreationState::SelectFirstCapsule => {
-                                JointCreationState::SelectSecondCapsule
-                            }
-                            JointCreationState::SelectSecondCapsule => {
-                                JointCreationState::PlaceJoint
-                            }
-                            _ => self.joint_creation_state,
-                        };
+            if self.selected_capsules.len() == max_selections {
+                self.joint_creation_state = match self.joint_creation_state {
+                    JointCreationState::SelectFirstCapsule => {
+                        JointCreationState::SelectSecondCapsule
                     }
-                } else {
-                    self.selected_capsules.clear();
-                    self.joint_creation_state = JointCreationState::SelectFirstCapsule;
-                }
+                    JointCreationState::SelectSecondCapsule => JointCreationState::PlaceJoint,
+                    _ => self.joint_creation_state,
+                };
             }
-            Err(_) => {
-                // handle the error
-                eprintln!("Error: could not borrow the robot to get the capsules in JointEditor::update_capsule_selection");
-            }
+        } else {
+            self.selected_capsules.clear();
+            self.joint_creation_state = JointCreationState::SelectFirstCapsule;
         }
     }
 
@@ -226,15 +192,8 @@ impl JointEditor {
         painter: &egui::Painter,
         pointer_pos: Pos2,
         editing_state: EditingState,
+        robot: &Robot,
     ) {
-        let robot = match self.robot.try_borrow() {
-            Ok(robot) => robot,
-            Err(_) => {
-                eprintln!("Could not borrow robot");
-                return;
-            }
-        };
-
         let selected_capsule_points: Vec<CapsulePointId> = self
             .selected_capsules
             .iter()
@@ -283,19 +242,12 @@ impl JointEditor {
             &hovered_joints,
         );
 
-        self.draw_joint_visualization(painter, pointer_pos);
+        self.draw_joint_visualization(painter, pointer_pos, robot);
         self.draw_editing_visualization(painter, pointer_pos, editing_state);
     }
 
-    fn draw_joint_visualization(&self, painter: &egui::Painter, pointer_pos: Pos2) {
+    fn draw_joint_visualization(&self, painter: &egui::Painter, pointer_pos: Pos2, robot: &Robot) {
         if self.selected_capsules.len() == 2 {
-            let robot = match self.robot.try_borrow() {
-                Ok(robot) => robot,
-                Err(_) => {
-                    eprintln!("Could not borrow robot");
-                    return;
-                }
-            };
             if robot.check_joint_placement(pointer_pos, &self.selected_capsules) {
                 painter.circle_filled(pointer_pos, 5.0, Color32::GREEN);
             } else {

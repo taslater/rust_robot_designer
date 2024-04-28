@@ -1,156 +1,76 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+
+use eframe::{egui, NativeOptions};
+use egui_dock::{DockArea, DockState, Style, TabViewer};
+
 mod editor;
 mod model;
 
-
-use eframe::egui;
-use egui::{Color32, Frame, Slider, Stroke};
-
-use crate::editor::common::EditingPart;
-use editor::common::EditingState;
 use editor::robot_editor::RobotEditor;
 use model::robot::Robot;
 
-pub struct RobotDesignerApp {
-    editing_part: EditingPart,
-    editing_state: EditingState,
+struct RobotDesignerApp {
     robot: Rc<RefCell<Robot>>,
     robot_editor: RobotEditor,
-}
-
-impl RobotDesignerApp {
-    fn on_editing_state_changed(&mut self) {
-        match self.editing_part {
-            EditingPart::Capsule => {
-                self.robot_editor
-                    .capsule_editor
-                    .on_editing_state_changed(self.editing_state);
-            }
-            EditingPart::Joint => {
-                self.robot_editor.capsule_editor.clear_capsule_selection();
-                self.robot_editor
-                    .joint_editor
-                    .on_editing_state_changed(self.editing_state);
-            }
-        }
-    }
+    dock_state: DockState<String>,
 }
 
 impl Default for RobotDesignerApp {
     fn default() -> Self {
         let robot = Rc::new(RefCell::new(Robot::new()));
+        let mut dock_state = DockState::new(vec!["Editor".to_owned()]);
+
+        // Add additional tabs here
+        // dock_state.main_surface_mut().split_right(NodeIndex::root(), 0.5, vec!["Simulator".to_owned()]);
+        // dock_state.main_surface_mut().split_right(NodeIndex::root(), 0.5, vec!["Trainer".to_owned()]);
+
         RobotDesignerApp {
-            editing_part: EditingPart::Capsule,
-            editing_state: EditingState::Create,
             robot: robot.clone(),
-            robot_editor: RobotEditor::new(robot),
+            robot_editor: RobotEditor::new(),
+            dock_state,
         }
     }
 }
 
 impl eframe::App for RobotDesignerApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Robot Designer App");
-
-            ui.horizontal(|ui| {
-                ui.label("Part Type:");
-                let robot_clicked = ui
-                    .radio_value(&mut self.editing_part, EditingPart::Capsule, "Capsule")
-                    .clicked();
-
-                let has_overlapping_capsules = self.robot.borrow().has_overlapping_capsules();
-
-                ui.scope(|ui| {
-                    ui.set_enabled(has_overlapping_capsules);
-                    let joint_clicked = ui
-                        .radio_value(&mut self.editing_part, EditingPart::Joint, "Joint")
-                        .clicked();
-
-                    if robot_clicked || (joint_clicked && has_overlapping_capsules) {
-                        self.on_editing_state_changed();
-                    }
-                });
+        DockArea::new(&mut self.dock_state)
+            .style(Style::from_egui(ctx.style().as_ref()))
+            .show(ctx, &mut RobotDesignerTabViewer {
+                robot: &mut self.robot,
+                robot_editor: &mut self.robot_editor,
+                ctx,
             });
-
-            ui.horizontal(|ui| {
-                ui.label("Editing Mode:");
-                let create_clicked = ui
-                    .radio_value(&mut self.editing_state, EditingState::Create, "Create")
-                    .clicked();
-                let update_clicked = ui
-                    .radio_value(&mut self.editing_state, EditingState::Update, "Update")
-                    .clicked();
-                let delete_clicked = ui
-                    .radio_value(&mut self.editing_state, EditingState::Delete, "Delete")
-                    .clicked();
-
-                if create_clicked || update_clicked || delete_clicked {
-                    self.on_editing_state_changed();
-                }
-            });
-
-            Frame::canvas(ui.style())
-                .stroke(Stroke::new(1.0, Color32::BLACK))
-                .show(ui, |ui| {
-                    let (response, painter) = ui.allocate_painter(
-                        egui::Vec2::new(400.0, 300.0),
-                        egui::Sense::click_and_drag(),
-                    );
-
-                    let pointer_pos = response.hover_pos().unwrap_or_default();
-
-                    // self.robot.borrow().draw(&painter);
-                    self.robot_editor.draw_editor(
-                        &painter,
-                        pointer_pos,
-                        self.editing_state,
-                        self.editing_part,
-                        self.robot_editor.capsule_editor.radius,
-                    );
-                    
-
-                    self.robot_editor.update(
-                        ui,
-                        ctx,
-                        pointer_pos,
-                        self.editing_part,
-                        self.editing_state,
-                        &response,
-                    );
-                });
-
-            match self.editing_part {
-                EditingPart::Capsule => {
-                    let slider_response = ui.add(
-                        Slider::new(&mut self.robot_editor.capsule_editor.radius, 10.0..=30.0)
-                            .text("Capsule radius"),
-                    );
-
-                    if slider_response.changed() {
-                        self.robot_editor
-                            .capsule_editor
-                            .on_capsule_radius_slider_changed(
-                                self.robot_editor.capsule_editor.radius,
-                            );
-                    }
-
-                    if slider_response.hovered() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
-                    }
-                }
-                EditingPart::Joint => {
-                    // Add joint-specific controls if needed
-                }
-            }
-        });
     }
 }
 
-fn main() -> Result<(), eframe::Error> {
+struct RobotDesignerTabViewer<'a> {
+    robot: &'a mut Rc<RefCell<Robot>>,
+    robot_editor: &'a mut RobotEditor,
+    ctx: &'a egui::Context,
+}
+
+impl<'a> TabViewer for RobotDesignerTabViewer<'a> {
+    type Tab = String;
+
+    fn title(&mut self, tab: &mut Self::Tab) -> egui::WidgetText {
+        (&*tab).into()
+    }
+
+    fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
+        match &**tab {
+            "Editor" => {
+                self.robot_editor.draw_editor_ui(ui, &mut self.robot.borrow_mut(), self.ctx);
+            }
+            _ => {}
+        }
+    }
+}
+
+fn main() -> eframe::Result<()> {
     env_logger::init();
-    let options = eframe::NativeOptions {
+    let options = NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([800.0, 600.0]),
         ..Default::default()
     };

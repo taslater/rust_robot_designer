@@ -10,6 +10,7 @@ eframe = "0.27.2"
 egui = "0.27.2"
 # # For image support:
 # egui_extras = { workspace = true, features = ["default", "image"] }
+egui_dock = "0.12"
 egui_extras = { version = "0.27.2", features = ["default", "image"] }
 env_logger = { version = "0.11.3", default-features = false, features = [
     "auto-color",

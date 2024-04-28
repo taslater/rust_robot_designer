@@ -69,44 +69,6 @@ impl CapsuleEditor {
         // self.selected_capsules.clear();
     }
 
-    // fn update_selected_capsules(&mut self) {
-    //     let mut selected_capsules: Vec<SelectedCapsule> = Vec::new();
-    //     for point in &self.selected_capsule_points {
-    //         let mut found = false;
-    //         for capsule in &mut selected_capsules {
-    //             if point.capsule_id == capsule.capsule_id {
-    //                 found = true;
-    //                 match capsule.selection_type {
-    //                     CapsulePtsSelected::Circle1 => {
-    //                         if point.point_type == "x2" {
-    //                             capsule.selection_type = CapsulePtsSelected::Body;
-    //                         }
-    //                     }
-    //                     CapsulePtsSelected::Circle2 => {
-    //                         if point.point_type == "x1" {
-    //                             capsule.selection_type = CapsulePtsSelected::Body;
-    //                         }
-    //                     }
-    //                     CapsulePtsSelected::Body => {}
-    //                 }
-    //                 break;
-    //             }
-    //         }
-    //         if !found {
-    //             let selection_type = match point.point_type.as_str() {
-    //                 "x1" => CapsulePtsSelected::Circle1,
-    //                 "x2" => CapsulePtsSelected::Circle2,
-    //                 _ => CapsulePtsSelected::Body,
-    //             };
-    //             selected_capsules.push(SelectedCapsule {
-    //                 capsule_id: point.capsule_id,
-    //                 selection_type,
-    //             });
-    //         }
-    //     }
-    //     self.selected_capsules = selected_capsules;
-    // }
-
     fn update_overlapping_capsules(&mut self) {
         let robot = match self.robot.try_borrow() {
             Ok(robot) => robot,
@@ -140,14 +102,6 @@ impl CapsuleEditor {
             y,
         } in clicked_points
         {
-            // if let Some(index) = self.selected_capsule_points.iter().position(|capsule_point| {
-            //     capsule_point.capsule_id == clicked_point.capsule_id
-            //         && capsule_point.point_type == clicked_point.point_type
-            // }) {
-            //     self.selected_capsule_points.remove(index);
-            // } else {
-            //     self.selected_capsule_points.push(clicked_point.clone());
-            // }
             if let Some(index) = self
                 .selected_capsule_points
                 .iter()
@@ -197,115 +151,11 @@ impl CapsuleEditor {
             .collect();
     }
 
-    // fn set_drag_offsets(&mut self, pointer_pos: Pos2) {
-    //     self.capsule_drag_offsets = self
-    //         .selected_capsules
-    //         .iter()
-    //         .map(|selected_capsule| {
-    //             let capsule = self.robot.borrow().get_capsule(selected_capsule.capsule_id).unwrap();
-    //             let (x, y) = match selected_capsule.selection_type {
-    //                 CapsulePtsSelected::Circle1 => (capsule.x1, capsule.y1),
-    //                 CapsulePtsSelected::Circle2 => (capsule.x2, capsule.y2),
-    //                 CapsulePtsSelected::Body => (capsule.x1, capsule.y1),
-    //             };
-    //             Pos2::new(pointer_pos.x - x, pointer_pos.y - y)
-    //         })
-    //         .collect();
-    // }
-
     fn stop_dragging(&mut self) {
         self.update_selected_capsule_points();
         self.capsule_drag_offsets.clear();
         self.update_overlapping_capsules();
     }
-
-    // fn drag_capsules(&mut self, pointer_pos: Pos2) {
-    //     for (index, selected_capsule) in self.selected_capsules.iter().enumerate() {
-    //         let offset = self.capsule_drag_offsets[index];
-    //         match selected_capsule.selection_type {
-    //             CapsulePtsSelected::Circle1 => {
-    //                 self.robot.borrow_mut().update_capsule_endcap(
-    //                     selected_capsule.capsule_id,
-    //                     PointType::Pt1,
-    //                     pointer_pos.x - offset.x,
-    //                     pointer_pos.y - offset.y,
-    //                 );
-    //             }
-    //             CapsulePtsSelected::Circle2 => {
-    //                 self.robot.borrow_mut().update_capsule_endcap(
-    //                     selected_capsule.capsule_id,
-    //                     PointType::Pt2,
-    //                     pointer_pos.x - offset.x,
-    //                     pointer_pos.y - offset.y,
-    //                 );
-    //             }
-    //             CapsulePtsSelected::Body => {
-    //                 let dx = pointer_pos.x
-    //                     - offset.x
-    //                     - self
-    //                         .robot
-    //                         .borrow()
-    //                         .get_capsule(selected_capsule.capsule_id)
-    //                         .unwrap()
-    //                         .x1;
-    //                 let dy = pointer_pos.y
-    //                     - offset.y
-    //                     - self
-    //                         .robot
-    //                         .borrow()
-    //                         .get_capsule(selected_capsule.capsule_id)
-    //                         .unwrap()
-    //                         .y1;
-    //                 self.robot.borrow_mut().update_capsule_body(
-    //                     selected_capsule.capsule_id,
-    //                     dx,
-    //                     dy,
-    //                 );
-    //             }
-    //         }
-    //     }
-    // }
-
-    // fn drag_capsules(&mut self, pointer_pos: Pos2) {
-    //     for (index, selected_capsule) in self.selected_capsules.iter().enumerate() {
-    //         let offset = self.capsule_drag_offsets[index];
-    //         let mut robot = match self.robot.try_borrow_mut() {
-    //             Ok(robot) => robot,
-    //             Err(_) => {
-    //                 eprintln!("Could not borrow robot");
-    //                 return;
-    //             }
-    //         };
-    //         match selected_capsule.selection_type {
-    //             CapsulePtsSelected::Circle1 => {
-    //                 robot.update_capsule_endcap(
-    //                     selected_capsule.capsule_id,
-    //                     PointType::Pt1,
-    //                     pointer_pos.x - offset.x,
-    //                     pointer_pos.y - offset.y,
-    //                 );
-    //             }
-    //             CapsulePtsSelected::Circle2 => {
-    //                 robot.update_capsule_endcap(
-    //                     selected_capsule.capsule_id,
-    //                     PointType::Pt2,
-    //                     pointer_pos.x - offset.x,
-    //                     pointer_pos.y - offset.y,
-    //                 );
-    //             }
-    //             CapsulePtsSelected::Body => {
-    //                 let dx = pointer_pos.x - offset.x;
-    //                 let dy = pointer_pos.y - offset.y;
-    //                 let capsule = robot.get_capsule(selected_capsule.capsule_id).unwrap();
-    //                 robot.update_capsule_body(
-    //                     selected_capsule.capsule_id,
-    //                     dx - capsule.x1,
-    //                     dy - capsule.y1,
-    //                 );
-    //             }
-    //         }
-    //     }
-    // }
 
     fn drag_capsules(&mut self, pointer_pos: Pos2) {
         for (index, point) in self.selected_capsule_points.iter().enumerate() {
@@ -326,14 +176,19 @@ impl CapsuleEditor {
     }
 
     fn set_selected_capsules_radius(&mut self, new_radius: f32) {
-        // for capsule in &mut self.selected_capsules {
-        //     self.robot
-        //         .borrow_mut()
-        //         .update_capsule_radius(capsule.capsule_id, new_radius);
-        // }
         let mut capsule_ids: HashSet<usize> = HashSet::new();
         for capsule_point in &self.selected_capsule_points {
             capsule_ids.insert(capsule_point.capsule_point_id.capsule_id);
+        }
+        let mut robot = match self.robot.try_borrow_mut() {
+            Ok(robot) => robot,
+            Err(_) => {
+                eprintln!("Could not borrow robot");
+                return;
+            }
+        };
+        for capsule_id in capsule_ids {
+            robot.update_capsule_radius(capsule_id, new_radius);
         }
     }
 
@@ -376,27 +231,28 @@ impl CapsuleEditor {
     }
 
     fn update_selected_capsule_points(&mut self) {
-        // self.selected_capsule_points = self
-        //     .selected_capsule_points
-        //     .iter()
-        //     .map(|point| {
-        //         if let Some((x, y)) = self
-        //             .robot
-        //             .borrow()
-        //             .get_capsule_point(point.capsule_point_id)
-        //         {
-        //             CapsulePoint {
-        //                 // capsule_id: point.capsule_id,
-        //                 // point_type: point.point_type.clone(),
-        //                 capsule_point_id: point.capsule_point_id,
-        //                 x,
-        //                 y,
-        //             }
-        //         } else {
-        //             point.clone()
-        //         }
-        //     })
-        //     .collect();
+        println!("Before: {:?}", self.selected_capsule_points);
+        self.selected_capsule_points = self
+            .selected_capsule_points
+            .iter_mut()
+            .map(|point| {
+                if let Some(Pos2 { x, y }) = self
+                    .robot
+                    .borrow()
+                    .get_capsule_point_pos(point.capsule_point_id)
+                {
+                    println!("x: {}, y: {}", x, y);
+                    CapsulePoint {
+                        capsule_point_id: point.capsule_point_id,
+                        x,
+                        y,
+                    }
+                } else {
+                    point.clone()
+                }
+            })
+            .collect();
+        println!("After:  {:?}", self.selected_capsule_points);
     }
 
     pub fn on_editing_state_changed(&mut self, editing_state: EditingState) {
@@ -414,7 +270,7 @@ impl CapsuleEditor {
         editing_state: EditingState,
         capsule_radius: f32,
     ) {
-        let robot = match self.robot.try_borrow() {
+        let  robot = match self.robot.try_borrow() {
             Ok(robot) => robot,
             Err(_) => {
                 eprintln!("Could not borrow robot");
@@ -422,19 +278,15 @@ impl CapsuleEditor {
             }
         };
 
-        let selected_capsule_points: Vec<usize> = self
+        let selected_capsule_points: Vec<CapsulePointId> = self
             .selected_capsule_points
             .iter()
-            // .map(|point| point.capsule_id * 2 + if point.point_type == "x1" { 0 } else { 1 })
-            .map(|point| point.capsule_point_id.capsule_id)
+            .map(|point| point.capsule_point_id)
             .collect();
 
-        let hovered_capsule_points: Vec<usize> = robot
+        let hovered_capsule_points: Vec<CapsulePointId> = robot
             .find_hovered_capsule_points(pointer_pos)
-            .iter()
-            .map(|point| point.capsule_id)
-            .collect();
-        // println!("Len hovered: {:?}", hovered_capsule_points.len());
+            .clone();
 
         let selected_joints = vec![];
         let hovered_joints = vec![];

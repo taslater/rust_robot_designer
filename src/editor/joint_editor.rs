@@ -1,8 +1,10 @@
 use super::common::{EditingState, JointCreationState};
+use crate::model::capsule::{CapsulePointId, PointType};
 use crate::model::joint::Joint;
 use crate::model::robot::Robot;
-use std::{borrow::Borrow, cell::RefCell};
+use std::collections::HashSet;
 use std::rc::Rc;
+use std::{borrow::Borrow, cell::RefCell};
 
 use eframe::egui;
 use egui::{Color32, Pos2, Stroke};
@@ -66,13 +68,13 @@ impl JointEditor {
             JointCreationState::SelectFirstCapsule => {
                 ui.label("Select first capsule");
                 if response.clicked() {
-                    self.update_capsule_selection(pointer_pos, 1);
+                    self.update_capsule_selection(pointer_pos, 1, ui);
                 }
             }
             JointCreationState::SelectSecondCapsule => {
                 ui.label("Select second capsule");
                 if response.clicked() {
-                    self.update_capsule_selection(pointer_pos, 2);
+                    self.update_capsule_selection(pointer_pos, 2, ui);
                 }
             }
             JointCreationState::PlaceJoint => {
@@ -107,6 +109,7 @@ impl JointEditor {
     }
 
     fn create_joint(&mut self, pointer_pos: Pos2, ui: &mut egui::Ui) {
+        println!("Creating joint");
         let mut joint_created = false;
 
         let mut robot = match self.robot.try_borrow_mut() {
@@ -118,9 +121,8 @@ impl JointEditor {
         };
 
         if self.selected_capsules.len() == 2
-            && robot
-                .check_joint_placement(pointer_pos, &self.selected_capsules)
-        {   
+            && robot.check_joint_placement(pointer_pos, &self.selected_capsules)
+        {
             let joint = Joint {
                 id: robot.get_joint_count(),
                 x: pointer_pos.x,
@@ -153,7 +155,12 @@ impl JointEditor {
     //     self.selected_joint = self.robot.borrow().find_joint_at_position(pointer_pos);
     // }
 
-    fn update_capsule_selection(&mut self, pointer_pos: Pos2, max_selections: usize) {
+    fn update_capsule_selection(
+        &mut self,
+        pointer_pos: Pos2,
+        max_selections: usize,
+        ui: &mut egui::Ui,
+    ) {
         // try to borrow the robot to get the capsules
         match self.robot.try_borrow() {
             Ok(robot) => {
@@ -161,18 +168,32 @@ impl JointEditor {
                 // let clicked_capsule = capsules
                 //     .iter()
                 //     .position(|capsule| capsule.is_inside_at_all(pointer_pos.x, pointer_pos.y));
-                let clicked_capsules = robot.borrow().find_capsules_by_point(pointer_pos);
+                let clicked_capsule_id_set: HashSet<usize> = robot
+                    .borrow()
+                    .find_capsules_by_point(pointer_pos)
+                    .iter()
+                    .map(|capsule_point_id| capsule_point_id.capsule_id)
+                    .collect();
+                let clicked_capsule_ids: Vec<usize> =
+                    clicked_capsule_id_set.iter().cloned().collect();
                 // check if the length of clicked capsules is one
                 // otherwise, return
-                if clicked_capsules.len() != 1 {
+                if clicked_capsule_ids.len() != 1 {
+                    ui.label("Only one capsule can be selected at a time.");
                     return;
                 }
-                let clicked_capsule = clicked_capsules.get(0).cloned();
+                let clicked_capsule: Option<usize> = clicked_capsule_ids.get(0).cloned();
 
                 if let Some(capsule_id) = clicked_capsule {
                     if self.selected_capsules.contains(&capsule_id) {
                         // Deselect the capsule if it's already selected
                         self.selected_capsules.retain(|&id| id != capsule_id);
+                    } else if (self.selected_capsules.len() == 1)
+                        && (robot
+                            .are_capsules_already_joined(self.selected_capsules[0], capsule_id))
+                    {
+                        println!("The capsules are already joined.");
+                        return;
                     } else if self.selected_capsules.len() < max_selections {
                         self.selected_capsules.push(capsule_id);
                     }
@@ -195,7 +216,7 @@ impl JointEditor {
             }
             Err(_) => {
                 // handle the error
-                println!("Error: could not borrow the robot to get the capsules in JointEditor::update_capsule_selection");
+                eprintln!("Error: could not borrow the robot to get the capsules in JointEditor::update_capsule_selection");
             }
         }
     }
@@ -214,13 +235,43 @@ impl JointEditor {
             }
         };
 
-        let selected_capsule_points: Vec<usize> = self
+        let selected_capsule_points: Vec<CapsulePointId> = self
             .selected_capsules
             .iter()
-            .flat_map(|&capsule_id| vec![capsule_id * 2, capsule_id * 2 + 1])
+            .flat_map(|&capsule_id| {
+                [
+                    CapsulePointId {
+                        capsule_id,
+                        point_type: PointType::Pt1,
+                    },
+                    CapsulePointId {
+                        capsule_id,
+                        point_type: PointType::Pt2,
+                    },
+                ]
+            })
             .collect();
 
-        let hovered_capsule_points = vec![];
+        let hovered_capsule_ids: HashSet<usize> = robot
+            .find_hovered_capsule_points(pointer_pos)
+            .iter()
+            .map(|capsule_point| capsule_point.capsule_id)
+            .collect();
+        let hovered_capsule_points: Vec<CapsulePointId> = hovered_capsule_ids
+            .iter()
+            .flat_map(|capsule_id| {
+                [
+                    CapsulePointId {
+                        capsule_id: *capsule_id,
+                        point_type: PointType::Pt1,
+                    },
+                    CapsulePointId {
+                        capsule_id: *capsule_id,
+                        point_type: PointType::Pt2,
+                    },
+                ]
+            })
+            .collect();
         // let selected_joints: Vec<usize> = self.selected_joint.into_iter().collect();
         let hovered_joints = vec![];
 

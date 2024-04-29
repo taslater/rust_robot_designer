@@ -1,5 +1,6 @@
 use crate::model::robot::Robot;
 use rapier2d::prelude::*;
+use rapier2d::na::OPoint;
 
 pub(crate) struct RobotSimulator {
     capsule_data: Vec<CapsuleData>,
@@ -56,6 +57,37 @@ impl RobotSimulator {
         }
     }
 
+    // fn create_capsule(
+    //     hinge: &mut Hinge,
+    //     capsule_index: usize,
+    //     group: u32,
+    //     rigid_body_set: &mut RigidBodySet,
+    //     collider_set: &mut ColliderSet,
+    // ) {
+    //     let body = RigidBodyBuilder::dynamic()
+    //         .translation(vector![hinge.origin.x, hinge.origin.y])
+    //         .build();
+    //     let offset_x: f32 =
+    //         -hinge.capsules[capsule_index].angle.sin() * hinge.capsules[capsule_index].length / 2.0;
+    //     let offset_y: f32 =
+    //         hinge.capsules[capsule_index].angle.cos() * hinge.capsules[capsule_index].length / 2.0;
+    //     let pt_a: OPoint<f32, nalgebra::Const<2>> = point!(offset_x, offset_y);
+    //     let pt_b: OPoint<f32, nalgebra::Const<2>> = point!(-offset_x, -offset_y);
+    //     let collider = ColliderBuilder::new(SharedShape::capsule(
+    //         pt_a,
+    //         pt_b,
+    //         hinge.capsules[capsule_index].radius / 2.0,
+    //     ))
+    //     .collision_groups(InteractionGroups::new(group.into(), 0b0001.into()))
+    //     .build();
+    //     hinge.capsules[capsule_index].body_handle = rigid_body_set.insert(body);
+    //     hinge.capsules[capsule_index].collider_handle = collider_set.insert_with_parent(
+    //         collider,
+    //         hinge.capsules[capsule_index].body_handle,
+    //         rigid_body_set,
+    //     );
+    // }
+
     pub fn init_physics(&mut self, robot: &Robot) {
         println!("Initializing physics");
         let rigid_body_handles: Vec<_> = self
@@ -89,20 +121,33 @@ impl RobotSimulator {
             let rigid_body = RigidBodyBuilder::dynamic()
                 .translation(vector![capsule.get_center().x, capsule.get_center().y])
                 .build();
-            let collider = ColliderBuilder::capsule_y(
-                capsule.point1.y - capsule.point2.y,
-                capsule.radius,
-            )
-            .build();
+            // let offset_x: f32 =
+            //     -hinge.capsules[capsule_index].angle.sin() * hinge.capsules[capsule_index].length / 2.0;
+            // let offset_y: f32 =
+            //     hinge.capsules[capsule_index].angle.cos() * hinge.capsules[capsule_index].length / 2.0;
+            // let pt_a: OPoint<f32, nalgebra::Const<2>> = point!(offset_x, offset_y);
+            // let pt_b: OPoint<f32, nalgebra::Const<2>> = point!(-offset_x, -offset_y);
+            // let collider = ColliderBuilder::new(SharedShape::capsule(
+            //     pt_a,
+            //     pt_b,
+            //     hinge.capsules[capsule_index].radius / 2.0,
+            // ))
+            // .collision_groups(InteractionGroups::new(group.into(), 0b0001.into()))
+            // .build();
+            let offset_x = (capsule.point2.x - capsule.point1.x) / 2.0;
+            let offset_y = (capsule.point2.y - capsule.point1.y) / 2.0;
+            let pt_a: OPoint<f32, nalgebra::Const<2>> = point!(-offset_x, -offset_y);
+            let pt_b: OPoint<f32, nalgebra::Const<2>> = point!(offset_x, offset_y);
+            let collider = ColliderBuilder::new(SharedShape::capsule(pt_a, pt_b, capsule.radius / 2.0))
+                .collision_groups(InteractionGroups::new(0b0001.into(), 0b0001.into()))
+                .build();
             let body_handle = self.rigid_body_set.insert(rigid_body);
             let _collider_handle = self.collider_set.insert_with_parent(
                 collider,
                 body_handle,
                 &mut self.rigid_body_set,
             );
-            self.capsule_data.push(CapsuleData {
-                body_handle,
-            });
+            self.capsule_data.push(CapsuleData { body_handle });
         }
 
         println!("capsule_data: {:?}", self.capsule_data);
@@ -122,12 +167,9 @@ impl RobotSimulator {
                 .local_anchor2(point![0.0, 0.0])
                 .limits([joint.min, joint.max])
                 .build();
-            let _joint_handle = self.impulse_joint_set.insert(
-                body1,
-                body2,
-                revolute_joint,
-                true,
-            );
+            let _joint_handle = self
+                .impulse_joint_set
+                .insert(body1, body2, revolute_joint, true);
         }
     }
 
@@ -154,30 +196,29 @@ impl RobotSimulator {
         );
         println!("Physics step done");
 
-// Update the robot's capsule positions based on the simulation
-for (capsule, capsule_data) in robot.get_capsules_mut().iter_mut().zip(&self.capsule_data) {
-    println!("Updating capsule: {:?}", capsule_data.body_handle);
-    if let Some(body) = self.rigid_body_set.get(capsule_data.body_handle) {
-        println!("Found capsule: {:?}", capsule_data.body_handle);
-        let position = body.position().translation;
-        let rotation = body.position().rotation.angle() + capsule.rotation_offset;
-        let half_length = capsule.length / 2.0;
-        
-        let center_x = position.x;
-        let center_y = position.y;
-        
-        let dx = half_length * rotation.sin();
-        let dy = half_length * rotation.cos();
-        
-        capsule.point1.x = center_x - dx;
-        capsule.point1.y = center_y - dy;
-        capsule.point2.x = center_x + dx;
-        capsule.point2.y = center_y + dy;
-    } else {
-        println!("Could not find capsule: {:?}", capsule_data.body_handle);
-    }
-}
-        
+        // Update the robot's capsule positions based on the simulation
+        for (capsule, capsule_data) in robot.get_capsules_mut().iter_mut().zip(&self.capsule_data) {
+            println!("Updating capsule: {:?}", capsule_data.body_handle);
+            if let Some(body) = self.rigid_body_set.get(capsule_data.body_handle) {
+                println!("Found capsule: {:?}", capsule_data.body_handle);
+                let position = body.position().translation;
+                let rotation = body.position().rotation.angle() + capsule.rotation_offset;
+                let half_length = capsule.length / 2.0;
+
+                let center_x = position.x;
+                let center_y = position.y;
+
+                let dx = half_length * rotation.sin();
+                let dy = half_length * rotation.cos();
+
+                capsule.point1.x = center_x - dx;
+                capsule.point1.y = center_y - dy;
+                capsule.point2.x = center_x + dx;
+                capsule.point2.y = center_y + dy;
+            } else {
+                println!("Could not find capsule: {:?}", capsule_data.body_handle);
+            }
+        }
     }
 
     pub fn toggle_playback(&mut self) {

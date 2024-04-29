@@ -5,7 +5,7 @@ use geo::relate::Relate;
 use geo::{polygon, Polygon};
 
 #[derive(Debug, Clone, Copy)]
-pub(super) struct Capsule {
+pub(crate) struct Capsule {
     pub id: usize,
     pub radius: f32,
     // pub x1: f32,
@@ -14,6 +14,8 @@ pub(super) struct Capsule {
     // pub y2: f32,
     pub point1: CapsulePoint,
     pub point2: CapsulePoint,
+    pub length: f32,
+    pub rotation_offset: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -63,18 +65,18 @@ const OUTLINE_COLOR: Color32 = Color32::from_rgb(0, 0, 0);
 const OUTLINE_WIDTH: f32 = 1.0;
 
 impl Capsule {
-    pub fn update_point_pos(&mut self, point_type: PointType, x: f32, y: f32) {
-        match point_type {
-            PointType::Pt1 => {
-                self.point1.x = x;
-                self.point1.y = y;
-            }
-            PointType::Pt2 => {
-                self.point2.x = x;
-                self.point2.y = y;
-            }
-        }
-    }
+    // pub fn update_point_pos(&mut self, point_type: PointType, x: f32, y: f32) {
+    //     match point_type {
+    //         PointType::Pt1 => {
+    //             self.point1.x = x;
+    //             self.point1.y = y;
+    //         }
+    //         PointType::Pt2 => {
+    //             self.point2.x = x;
+    //             self.point2.y = y;
+    //         }
+    //     }
+    // }
 
     pub fn is_inside_at_all(&self, x: f32, y: f32) -> bool {
         let dx = self.point2.x - self.point1.x;

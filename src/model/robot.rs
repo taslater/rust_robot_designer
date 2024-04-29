@@ -1,6 +1,6 @@
 // robot.rs
 use super::capsule::{
-    self, Capsule, CapsuleColors, CapsulePoint, CapsulePointId, PointInsideCapsule, PointType,
+    Capsule, CapsuleColors, CapsulePoint, CapsulePointId, PointInsideCapsule, PointType,
     SelectionLevel,
 };
 use crate::editor::capsule_editor::OverlappingCapsules;
@@ -16,7 +16,7 @@ fn generate_capsule_id() -> usize {
     CAPSULE_ID_COUNTER.fetch_add(1, Ordering::SeqCst)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Robot {
     capsules: Vec<Capsule>,
     joints: Vec<Joint>,
@@ -29,6 +29,34 @@ impl Robot {
             joints: Vec::new(),
         }
     }
+
+    pub fn get_capsules(&self) -> &Vec<Capsule> {
+        &self.capsules
+    }
+
+    // pub fn get_capsule(&self, capsule_id: usize) -> Option<&Capsule> {
+    //     self.capsules.get(capsule_id)
+    // }
+
+    pub fn get_capsules_mut(&mut self) -> &mut Vec<Capsule> {
+        &mut self.capsules
+    }
+
+    // pub fn get_capsule_mut(&mut self, capsule_id: usize) -> Option<&mut Capsule> {
+    //     self.capsules.get_mut(capsule_id)
+    // }
+
+    pub fn get_joints(&self) -> &Vec<Joint> {
+        &self.joints
+    }
+
+    // pub fn get_joint(&self, joint_id: usize) -> Option<&Joint> {
+    //     self.joints.get(joint_id)
+    // }
+
+    // pub fn get_joint_mut(&mut self, joint_id: usize) -> Option<&mut Joint> {
+    //     self.joints.get_mut(joint_id)
+    // }
 
     pub fn add_capsule(&mut self, start_point: Pos2, pointer_pos: Pos2, radius: f32) {
         let capsule_id = generate_capsule_id();
@@ -51,6 +79,10 @@ impl Robot {
                 x: pointer_pos.x,
                 y: pointer_pos.y,
             },
+            length: f32::sqrt(
+                (pointer_pos.x - start_point.x).powi(2) + (pointer_pos.y - start_point.y).powi(2),
+            ),
+            rotation_offset: f32::atan2(pointer_pos.y - start_point.y, pointer_pos.x - start_point.x),
         };
         self.capsules.push(capsule);
     }
@@ -58,21 +90,6 @@ impl Robot {
     pub fn remove_capsules_by_point(&mut self, x: f32, y: f32) {
         self.capsules
             .retain(|capsule| !capsule.is_inside_at_all(x, y));
-    }
-
-    pub fn move_endcap(&mut self, capsule_id: usize, point_type: PointType, x: f32, y: f32) {
-        if let Some(capsule) = self.capsules.get_mut(capsule_id) {
-            capsule.update_point_pos(point_type, x, y);
-        }
-    }
-
-    pub fn update_capsule_body(&mut self, capsule_id: usize, dx: f32, dy: f32) {
-        if let Some(capsule) = self.capsules.get_mut(capsule_id) {
-            capsule.point1.x += dx;
-            capsule.point1.y += dy;
-            capsule.point2.x += dx;
-            capsule.point2.y += dy;
-        }
     }
 
     pub fn update_capsule_point_pos(&mut self, capsule_point_id: CapsulePointId, x: f32, y: f32) {
@@ -91,38 +108,14 @@ impl Robot {
                     capsule.point2.y = y;
                 }
             }
+            capsule.length = f32::sqrt((capsule.point2.x - capsule.point1.x).powi(2) + (capsule.point2.y - capsule.point1.y).powi(2));
+            capsule.rotation_offset = f32::atan2(capsule.point2.y - capsule.point1.y, capsule.point2.x - capsule.point1.x);
         }
     }
 
     pub fn update_capsule_radius(&mut self, capsule_id: usize, radius: f32) {
         if let Some(capsule) = self.capsules.get_mut(capsule_id) {
             capsule.radius = radius;
-        }
-    }
-
-    pub fn get_capsule(&self, capsule_id: usize) -> Option<&Capsule> {
-        self.capsules.iter().find(|c| c.id == capsule_id)
-    }
-
-    pub fn get_capsule_point(
-        &self,
-        // capsule_id: usize,
-        // point_type: &PointType,
-        capsule_point_id: CapsulePointId,
-    ) -> Option<CapsulePointId> {
-        if let Some(capsule) = self.capsules.get(capsule_point_id.capsule_id) {
-            match capsule_point_id.point_type {
-                PointType::Pt1 => Some(CapsulePointId {
-                    capsule_id: capsule.id,
-                    point_type: PointType::Pt1,
-                }),
-                PointType::Pt2 => Some(CapsulePointId {
-                    capsule_id: capsule.id,
-                    point_type: PointType::Pt2,
-                }),
-            }
-        } else {
-            None
         }
     }
 
@@ -262,12 +255,6 @@ impl Robot {
         self.joints.iter().any(|joint| {
             (joint.capsule1_id == capsule1_id && joint.capsule2_id == capsule2_id)
                 || (joint.capsule1_id == capsule2_id && joint.capsule2_id == capsule1_id)
-        })
-    }
-
-    pub fn is_capsule_already_joined(&self, capsule_id: usize) -> bool {
-        self.joints.iter().any(|joint| {
-            joint.capsule1_id == capsule_id || joint.capsule2_id == capsule_id
         })
     }
 

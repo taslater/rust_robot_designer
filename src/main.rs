@@ -6,14 +6,19 @@ use egui_dock::{DockArea, DockState, Style, TabViewer};
 
 mod editor;
 mod model;
+mod robot_simulator;
+mod not_main;
 
 use editor::robot_editor::RobotEditor;
 use model::robot::Robot;
+use robot_simulator::RobotSimulator;
 
 struct RobotDesignerApp {
     robot: Rc<RefCell<Robot>>,
     robot_editor: RobotEditor,
+    robot_simulator: RobotSimulator,
     dock_state: DockState<String>,
+    current_tab: String,
 }
 
 impl Default for RobotDesignerApp {
@@ -28,7 +33,9 @@ impl Default for RobotDesignerApp {
         RobotDesignerApp {
             robot: robot.clone(),
             robot_editor: RobotEditor::new(),
+            robot_simulator: RobotSimulator::new(),
             dock_state,
+            current_tab: "Editor".to_string(),
         }
     }
 }
@@ -40,7 +47,9 @@ impl eframe::App for RobotDesignerApp {
             .show(ctx, &mut RobotDesignerTabViewer {
                 robot: &mut self.robot,
                 robot_editor: &mut self.robot_editor,
+                robot_simulator: &mut self.robot_simulator,
                 ctx,
+                current_tab: &mut self.current_tab,
             });
     }
 }
@@ -48,20 +57,12 @@ impl eframe::App for RobotDesignerApp {
 struct RobotDesignerTabViewer<'a> {
     robot: &'a mut Rc<RefCell<Robot>>,
     robot_editor: &'a mut RobotEditor,
+    robot_simulator: &'a mut RobotSimulator,
     ctx: &'a egui::Context,
+    current_tab: &'a mut String,
 }
 
 impl<'a> RobotDesignerTabViewer<'a> {
-    fn draw_simulator_ui(&self, ui: &mut egui::Ui, robot: &Robot) {
-        egui::Frame::canvas(ui.style()).show(ui, |ui| {
-            let (_response, _painter) = ui.allocate_painter(
-                egui::Vec2::new(400.0, 300.0),
-                egui::Sense::click_and_drag(),
-            );
-            ui.label(format!("{:#?}", robot));
-        });
-    }
-
     fn draw_trainer_ui(&self, ui: &mut egui::Ui, robot: &Robot) {
         egui::Frame::canvas(ui.style()).show(ui, |ui| {
             let (_response, _painter) = ui.allocate_painter(
@@ -81,12 +82,19 @@ impl<'a> TabViewer for RobotDesignerTabViewer<'a> {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
+        let previous_tab = self.current_tab.clone();
+        *self.current_tab = (*tab).clone();
+
         match &**tab {
             "Editor" => {
                 self.robot_editor.draw_editor_ui(ui, &mut self.robot.borrow_mut(), self.ctx);
             }
             "Simulator" => {
-                self.draw_simulator_ui(ui, &self.robot.borrow());
+                if previous_tab != "Simulator" {
+                    println!("Switched to Simulator tab");
+                    self.robot_simulator.init_physics(&self.robot.borrow());
+                }
+                self.robot_simulator.ui(ui, &mut self.robot.borrow_mut());
             }
             "Trainer" => {
                 self.draw_trainer_ui(ui, &self.robot.borrow());

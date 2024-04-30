@@ -8,14 +8,9 @@ use geo::{polygon, Polygon};
 pub(crate) struct Capsule {
     pub id: usize,
     pub radius: f32,
-    // pub x1: f32,
-    // pub y1: f32,
-    // pub x2: f32,
-    // pub y2: f32,
     pub point1: CapsulePoint,
     pub point2: CapsulePoint,
-    pub length: f32,
-    pub rotation_offset: f32,
+    initial_rotation_offset: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -29,6 +24,15 @@ pub(crate) struct CapsulePoint {
     pub capsule_point_id: CapsulePointId,
     pub x: f32,
     pub y: f32,
+}
+
+impl From<CapsulePoint> for Pos2 {
+    fn from(point: CapsulePoint) -> Self {
+        Pos2 {
+            x: point.x,
+            y: point.y,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -65,18 +69,90 @@ const OUTLINE_COLOR: Color32 = Color32::from_rgb(0, 0, 0);
 const OUTLINE_WIDTH: f32 = 1.0;
 
 impl Capsule {
-    // pub fn update_point_pos(&mut self, point_type: PointType, x: f32, y: f32) {
-    //     match point_type {
-    //         PointType::Pt1 => {
-    //             self.point1.x = x;
-    //             self.point1.y = y;
-    //         }
-    //         PointType::Pt2 => {
-    //             self.point2.x = x;
-    //             self.point2.y = y;
-    //         }
-    //     }
-    // }
+    // Constructor
+    pub fn new(id: usize, radius: f32, point1: CapsulePoint, point2: CapsulePoint) -> Self {
+        let (_, _, rotation_offset) = Self::from_two_points(point1.into(), point2.into());
+        Capsule {
+            id,
+            radius,
+            point1,
+            point2,
+            initial_rotation_offset: rotation_offset,
+        }
+    }
+
+    pub fn get_initial_rotation_offset(&self) -> f32 {
+        self.initial_rotation_offset
+    }
+
+    // Conversion methods
+    fn to_center_length_rotation(&self) -> (Pos2, f32, f32) {
+        Self::from_two_points(self.point1.into(), self.point2.into())
+    }
+
+    fn from_center_length_rotation(center: Pos2, half_length: f32, rotation: f32) -> (Pos2, Pos2) {
+        let cos_rot = rotation.cos();
+        let sin_rot = rotation.sin();
+        let dx = half_length * cos_rot;
+        let dy = half_length * sin_rot;
+
+        let point1 = Pos2::new(center.x - dx, center.y - dy);
+        let point2 = Pos2::new(center.x + dx, center.y + dy);
+
+        (point1, point2)
+    }
+
+    fn from_two_points(point1: Pos2, point2: Pos2) -> (Pos2, f32, f32) {
+        let center_x = (point1.x + point2.x) / 2.0;
+        let center_y = (point1.y + point2.y) / 2.0;
+        let center = Pos2::new(center_x, center_y);
+
+        let dx = point2.x - point1.x;
+        let dy = point2.y - point1.y;
+        let half_length = (dx * dx + dy * dy).sqrt() / 2.0;
+
+        let rotation = dy.atan2(dx);
+
+        (center, half_length, rotation)
+    }
+
+    // Derived properties
+    pub fn center(&self) -> Pos2 {
+        let (center, _, _) = self.to_center_length_rotation();
+        center
+    }
+
+    pub fn half_length(&self) -> f32 {
+        let (_, half_length, _) = self.to_center_length_rotation();
+        half_length
+    }
+
+    pub fn rotation(&self) -> f32 {
+        let (_, _, rotation) = self.to_center_length_rotation();
+        rotation
+    }
+
+    pub fn offset_points(&self) -> (f32, f32) {
+        let cos_rot = self.initial_rotation_offset.cos();
+        let sin_rot = self.initial_rotation_offset.sin();
+        let offset_x = self.half_length() * cos_rot;
+        let offset_y = self.half_length() * sin_rot;
+        (offset_x, offset_y)
+    }
+
+    pub fn update_endpoints(&mut self, center: Pos2, half_length: f32, rotation: f32) {
+        let (point1, point2) = Self::from_center_length_rotation(center, half_length, rotation);
+        self.point1 = CapsulePoint {
+            x: point1.x,
+            y: point1.y,
+            ..self.point1
+        };
+        self.point2 = CapsulePoint {
+            x: point2.x,
+            y: point2.y,
+            ..self.point2
+        };
+    }
 
     pub fn is_inside_at_all(&self, x: f32, y: f32) -> bool {
         let dx = self.point2.x - self.point1.x;
@@ -192,13 +268,6 @@ impl Capsule {
         false
     }
 
-    pub fn get_center(&self) -> Pos2 {
-        Pos2 {
-            x: (self.point1.x + self.point2.x) / 2.0,
-            y: (self.point1.y + self.point2.y) / 2.0,
-        }
-    }
-
     pub fn draw(
         &self,
         painter: &egui::Painter,
@@ -207,11 +276,17 @@ impl Capsule {
         body_color: Color32,
     ) {
         painter.add(Shape::line_segment(
-            [pos2(self.point1.x, self.point1.y), pos2(self.point2.x, self.point2.y)],
+            [
+                pos2(self.point1.x, self.point1.y),
+                pos2(self.point2.x, self.point2.y),
+            ],
             Stroke::new(self.radius * 2.0, OUTLINE_COLOR),
         ));
         painter.add(Shape::line_segment(
-            [pos2(self.point1.x, self.point1.y), pos2(self.point2.x, self.point2.y)],
+            [
+                pos2(self.point1.x, self.point1.y),
+                pos2(self.point2.x, self.point2.y),
+            ],
             Stroke::new((self.radius - OUTLINE_WIDTH) * 2.0, body_color),
         ));
 

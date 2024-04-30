@@ -58,32 +58,28 @@ impl Robot {
     //     self.joints.get_mut(joint_id)
     // }
 
-    pub fn add_capsule(&mut self, start_point: Pos2, pointer_pos: Pos2, radius: f32) {
+    pub fn add_capsule(&mut self, start_point: Pos2, end_point: Pos2, radius: f32) {
         let capsule_id = generate_capsule_id();
-        let capsule = Capsule {
-            id: capsule_id.clone(),
+        let capsule = Capsule::new(
+            capsule_id,
             radius,
-            point1: CapsulePoint {
+            CapsulePoint {
                 capsule_point_id: CapsulePointId {
-                    capsule_id: capsule_id.clone(),
+                    capsule_id,
                     point_type: PointType::Pt1,
                 },
                 x: start_point.x,
                 y: start_point.y,
             },
-            point2: CapsulePoint {
+            CapsulePoint {
                 capsule_point_id: CapsulePointId {
-                    capsule_id: capsule_id.clone(),
+                    capsule_id,
                     point_type: PointType::Pt2,
                 },
-                x: pointer_pos.x,
-                y: pointer_pos.y,
+                x: end_point.x,
+                y: end_point.y,
             },
-            length: f32::sqrt(
-                (pointer_pos.x - start_point.x).powi(2) + (pointer_pos.y - start_point.y).powi(2),
-            ),
-            rotation_offset: f32::atan2(pointer_pos.y - start_point.y, pointer_pos.x - start_point.x),
-        };
+        );
         self.capsules.push(capsule);
     }
 
@@ -93,11 +89,7 @@ impl Robot {
     }
 
     pub fn update_capsule_point_pos(&mut self, capsule_point_id: CapsulePointId, x: f32, y: f32) {
-        if let Some(capsule) = self
-            .capsules
-            .iter_mut()
-            .find(|c| c.id == capsule_point_id.capsule_id)
-        {
+        if let Some(capsule) = self.capsules.iter_mut().find(|c| c.id == capsule_point_id.capsule_id) {
             match capsule_point_id.point_type {
                 PointType::Pt1 => {
                     capsule.point1.x = x;
@@ -108,8 +100,10 @@ impl Robot {
                     capsule.point2.y = y;
                 }
             }
-            capsule.length = f32::sqrt((capsule.point2.x - capsule.point1.x).powi(2) + (capsule.point2.y - capsule.point1.y).powi(2));
-            capsule.rotation_offset = f32::atan2(capsule.point2.y - capsule.point1.y, capsule.point2.x - capsule.point1.x);
+            let center = capsule.center();
+            let half_length = capsule.half_length();
+            let rotation = capsule.rotation();
+            capsule.update_endpoints(center, half_length, rotation);
         }
     }
 

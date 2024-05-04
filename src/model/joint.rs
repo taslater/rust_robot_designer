@@ -1,6 +1,7 @@
 use eframe::egui;
 use egui::epaint::Shape;
 use egui::{pos2, Color32};
+use rapier2d::na::Point2;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Joint {
@@ -18,6 +19,10 @@ const OUTLINE_WIDTH: f32 = 1.0;
 const RADIUS: f32 = 5.0;
 
 impl Joint {
+    pub fn center(&self) -> Point2<f32> {
+        Point2::new(self.x, self.y)
+    }
+
     pub fn is_inside(&self, x: f32, y: f32) -> bool {
         let dx = self.x - x;
         let dy = self.y - y;

@@ -1,7 +1,14 @@
-use crate::model::robot::Robot;
+use crate::model::{capsule, robot::Robot};
 use egui::Pos2;
+use nalgebra::Point2;
 use rapier2d::prelude::*;
 use std::collections::HashMap;
+
+const GROUND_WIDTH: f32 = 1000.0;
+const GROUND_HEIGHT: f32 = 10.0;
+const GROUND_RESTITUTION: f32 = 0.0;
+const GROUND_X: f32 = 0.0;
+const GROUND_Y: f32 = 400.0 - GROUND_HEIGHT / 2.0;
 
 pub(crate) struct RobotSimulator {
     robot: Robot,
@@ -54,6 +61,17 @@ impl RobotSimulator {
             query_pipeline,
             event_handler,
             is_playing: false,
+        }
+    }
+
+    fn get_pt_offset(&self, capsule_id: usize, pt: &Point2<f32>) -> Option<Point2<f32>> {
+        let capsule_center_option: Option<Pos2> = self.robot.capsule_center(capsule_id);
+        if let Some(capsule_center) = capsule_center_option {
+            let offset_x: f32 = pt.x - capsule_center.x;
+            let offset_y: f32 = pt.y - capsule_center.y;
+            Some(Point2::new(offset_x, offset_y))
+        } else {
+            None
         }
     }
 
@@ -121,22 +139,40 @@ impl RobotSimulator {
             let (capsule1_id, capsule2_id) = (joint.capsule1_id, joint.capsule2_id);
             let body_handle1: RigidBodyHandle = self.robot_state.get(capsule1_id).unwrap();
             let body_handle2: RigidBodyHandle = self.robot_state.get(capsule2_id).unwrap();
-            // let (body1, body2) = (
-            //     self.rigid_body_set
-            //         .get_mut(self.robot_state.get(capsule1_id).unwrap())
-            //         .unwrap(),
-            //     self.rigid_body_set
-            //         .get_mut(self.robot_state.get(capsule2_id).unwrap())
-            //         .unwrap(),
-            // );
+            let joint_pos: Point2<f32> = joint.center();
+            let offset1_opt: Option<nalgebra::OPoint<f32, nalgebra::Const<2>>> =
+                self.get_pt_offset(capsule1_id, &joint_pos);
+            // early exit if the offset is None
+            if offset1_opt.is_none() {
+                println!("Offset1 is None");
+                continue;
+            }
+            let offset2_opt: Option<nalgebra::OPoint<f32, nalgebra::Const<2>>> =
+                self.get_pt_offset(capsule2_id, &joint_pos);
+            // early exit if the offset is None
+            if offset2_opt.is_none() {
+                println!("Offset2 is None");
+                continue;
+            }
+            let offset1: nalgebra::OPoint<f32, nalgebra::Const<2>> = offset1_opt.unwrap();
+            let offset2: nalgebra::OPoint<f32, nalgebra::Const<2>> = offset2_opt.unwrap();
+
             let revolute_joint: RevoluteJoint = RevoluteJointBuilder::new()
-                .local_anchor1(point![0.0, 0.0])
-                .local_anchor2(point![0.0, 0.0])
+                .local_anchor1(offset1)
+                .local_anchor2(offset2)
                 .limits([joint.min, joint.max])
                 .build();
             self.impulse_joint_set
                 .insert(body_handle1, body_handle2, revolute_joint, true);
         }
+
+        // Create the ground
+        let ground_collider = ColliderBuilder::cuboid(GROUND_WIDTH, GROUND_HEIGHT)
+            .translation(vector![GROUND_X, GROUND_Y])
+            .restitution(GROUND_RESTITUTION)
+            .collision_groups(InteractionGroups::new(0b0001.into(), 0b1111.into()))
+            .build();
+        self.collider_set.insert(ground_collider);
 
         &self.robot_state
     }
@@ -148,7 +184,7 @@ impl RobotSimulator {
             return;
         }
         self.physics_pipeline.step(
-            &vector![0.0, 9.81],
+            &vector![0.0, 9.81 * 10.0],
             &self.integration_parameters,
             &mut self.island_manager,
             &mut self.broad_phase,
@@ -162,13 +198,13 @@ impl RobotSimulator {
             &(),
             &self.event_handler,
         );
-        println!("Physics step done");
 
         // Update the robot's capsule positions based on the simulation
         for capsule in self.robot.get_capsules_mut() {
             if let Some(body_handle) = self.robot_state.get(capsule.id) {
                 if let Some(body) = self.rigid_body_set.get(body_handle) {
                     let position = body.position().translation;
+                    println!("Updating capsule position: {:?}", position);
                     // extremely important to add the initial rotation offset here
                     let rotation =
                         body.position().rotation.angle() + capsule.get_initial_rotation_offset();

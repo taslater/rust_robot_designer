@@ -58,6 +58,13 @@ impl Robot {
     //     self.joints.get_mut(joint_id)
     // }
 
+    pub fn capsule_center(&self, capsule_id: usize) -> Option<Pos2> {
+        self.capsules
+            .iter()
+            .find(|capsule| capsule.id == capsule_id)
+            .map(|capsule| capsule.center())
+    }
+
     pub fn add_capsule(&mut self, start_point: Pos2, end_point: Pos2, radius: f32) {
         let capsule_id = generate_capsule_id();
         let capsule = Capsule::new(

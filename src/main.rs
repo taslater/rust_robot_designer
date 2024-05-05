@@ -7,7 +7,7 @@ use egui_dock::{DockArea, DockState, Style, TabViewer};
 mod editor;
 mod model;
 mod robot_simulator;
-mod not_main;
+pub mod constants;
 
 use editor::robot_editor::RobotEditor;
 use model::robot::Robot;

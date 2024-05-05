@@ -1,4 +1,5 @@
-use crate::model::{capsule, robot::Robot};
+use crate::constants::GRAVITY;
+use crate::model::robot::Robot;
 use egui::Pos2;
 use nalgebra::Point2;
 use rapier2d::prelude::*;
@@ -10,10 +11,15 @@ const GROUND_RESTITUTION: f32 = 0.0;
 const GROUND_X: f32 = 0.0;
 const GROUND_Y: f32 = 400.0 - GROUND_HEIGHT / 2.0;
 
+const STEP_COUNT: usize = 200; // Number of steps before flipping direction
+                               // const TARGET_VELOCITY: f32 = 1e7; // Velocity of the motor
+                               // const DAMPING_FACTOR: f32 = 0.1; // Damping factor for the motor
+
+const MOTOR_MAX_TORQUE: f32 = 1e6; // Max torque of the motor
+
 pub(crate) struct RobotSimulator {
     robot: Robot,
-    robot_state: RobotPhysicsMap,
-    // capsule_data: Vec<CapsuleData>,
+    robot_physics_map: RobotPhysicsMap,
     rigid_body_set: RigidBodySet,
     collider_set: ColliderSet,
     impulse_joint_set: ImpulseJointSet,
@@ -27,6 +33,8 @@ pub(crate) struct RobotSimulator {
     query_pipeline: QueryPipeline,
     event_handler: (),
     is_playing: bool,
+    step_counter: usize,
+    motor_direction: f32,
 }
 
 impl RobotSimulator {
@@ -46,8 +54,7 @@ impl RobotSimulator {
 
         RobotSimulator {
             robot: Robot::new(),
-            robot_state: RobotPhysicsMap::new(),
-            // capsule_data: Vec::new(),
+            robot_physics_map: RobotPhysicsMap::new(),
             rigid_body_set: RigidBodySet::new(),
             collider_set: ColliderSet::new(),
             impulse_joint_set: ImpulseJointSet::new(),
@@ -61,6 +68,8 @@ impl RobotSimulator {
             query_pipeline,
             event_handler,
             is_playing: false,
+            step_counter: 0,
+            motor_direction: 1.0,
         }
     }
 
@@ -75,37 +84,6 @@ impl RobotSimulator {
         }
     }
 
-    // fn create_capsule(
-    //     hinge: &mut Hinge,
-    //     capsule_index: usize,
-    //     group: u32,
-    //     rigid_body_set: &mut RigidBodySet,
-    //     collider_set: &mut ColliderSet,
-    // ) {
-    //     let body = RigidBodyBuilder::dynamic()
-    //         .translation(vector![hinge.origin.x, hinge.origin.y])
-    //         .build();
-    //     let offset_x: f32 =
-    //         -hinge.capsules[capsule_index].angle.sin() * hinge.capsules[capsule_index].length / 2.0;
-    //     let offset_y: f32 =
-    //         hinge.capsules[capsule_index].angle.cos() * hinge.capsules[capsule_index].length / 2.0;
-    //     let pt_a: OPoint<f32, nalgebra::Const<2>> = point!(offset_x, offset_y);
-    //     let pt_b: OPoint<f32, nalgebra::Const<2>> = point!(-offset_x, -offset_y);
-    //     let collider = ColliderBuilder::new(SharedShape::capsule(
-    //         pt_a,
-    //         pt_b,
-    //         hinge.capsules[capsule_index].radius / 2.0,
-    //     ))
-    //     .collision_groups(InteractionGroups::new(group.into(), 0b0001.into()))
-    //     .build();
-    //     hinge.capsules[capsule_index].body_handle = rigid_body_set.insert(body);
-    //     hinge.capsules[capsule_index].collider_handle = collider_set.insert_with_parent(
-    //         collider,
-    //         hinge.capsules[capsule_index].body_handle,
-    //         rigid_body_set,
-    //     );
-    // }
-
     pub fn init_physics(&mut self, robot: &Robot) -> &RobotPhysicsMap {
         self.robot = robot.clone();
 
@@ -114,7 +92,7 @@ impl RobotSimulator {
         self.collider_set = ColliderSet::new();
         self.impulse_joint_set = ImpulseJointSet::new();
         self.multibody_joint_set = MultibodyJointSet::new();
-        self.robot_state.clear();
+        self.robot_physics_map.clear();
 
         // Create the capsules and populate the robot state
         for capsule in self.robot.get_capsules() {
@@ -122,8 +100,8 @@ impl RobotSimulator {
                 .translation(vector![capsule.center().x, capsule.center().y])
                 .build();
             let (offset_x, offset_y) = capsule.offset_points();
-            let pt_a = point![offset_x, offset_y];
-            let pt_b = point![-offset_x, -offset_y];
+            let  pt_a: nalgebra::OPoint<f32, nalgebra::Const<2>> = point![offset_x, offset_y];
+            let  pt_b: nalgebra::OPoint<f32, nalgebra::Const<2>> = point![-offset_x, -offset_y];
             let collider =
                 ColliderBuilder::new(SharedShape::capsule(pt_a, pt_b, capsule.radius / 2.0))
                     .collision_groups(InteractionGroups::new(0b0010.into(), 0b0001.into()))
@@ -131,15 +109,18 @@ impl RobotSimulator {
             let body_handle: RigidBodyHandle = self.rigid_body_set.insert(rigid_body);
             self.collider_set
                 .insert_with_parent(collider, body_handle, &mut self.rigid_body_set);
-            self.robot_state.insert(capsule.id, body_handle);
+            self.robot_physics_map
+                .insert_capsule(capsule.id, body_handle);
         }
 
         // Create the joints
         for joint in self.robot.get_joints() {
             let (capsule1_id, capsule2_id) = (joint.capsule1_id, joint.capsule2_id);
-            let body_handle1: RigidBodyHandle = self.robot_state.get(capsule1_id).unwrap();
-            let body_handle2: RigidBodyHandle = self.robot_state.get(capsule2_id).unwrap();
-            let joint_pos: Point2<f32> = joint.center();
+            let body_handle1: RigidBodyHandle =
+                self.robot_physics_map.get_capsule(capsule1_id).unwrap();
+            let body_handle2: RigidBodyHandle =
+                self.robot_physics_map.get_capsule(capsule2_id).unwrap();
+            let  joint_pos: Point2<f32> = joint.position();
             let offset1_opt: Option<nalgebra::OPoint<f32, nalgebra::Const<2>>> =
                 self.get_pt_offset(capsule1_id, &joint_pos);
             // early exit if the offset is None
@@ -156,14 +137,15 @@ impl RobotSimulator {
             }
             let offset1: nalgebra::OPoint<f32, nalgebra::Const<2>> = offset1_opt.unwrap();
             let offset2: nalgebra::OPoint<f32, nalgebra::Const<2>> = offset2_opt.unwrap();
-
+            
             let revolute_joint: RevoluteJoint = RevoluteJointBuilder::new()
                 .local_anchor1(offset1)
                 .local_anchor2(offset2)
                 .limits([joint.min, joint.max])
                 .build();
-            self.impulse_joint_set
+            let impulse_joint_handle = self.impulse_joint_set
                 .insert(body_handle1, body_handle2, revolute_joint, true);
+            self.robot_physics_map.insert_joint(joint.id, impulse_joint_handle);
         }
 
         // Create the ground
@@ -174,17 +156,40 @@ impl RobotSimulator {
             .build();
         self.collider_set.insert(ground_collider);
 
-        &self.robot_state
+        &self.robot_physics_map
     }
 
     fn update(&mut self) {
-        println!("Updating robot, is_playing: {}", self.is_playing);
         if !self.is_playing {
             println!("Not playing");
             return;
         }
+        self.step_counter += 1;
+        if self.step_counter % STEP_COUNT == 0 {
+            self.motor_direction *= -1.0;
+            self.step_counter = 0;
+            println!(
+                "Flipping direction, self.motor_direction: {}",
+                self.motor_direction
+            );
+        }
+        for (_joint_handle, impulse_joint) in self.impulse_joint_set.iter_mut() {
+            // impulse_joint.data.set_motor_velocity(
+            //     JointAxis::X,
+            //     TARGET_VELOCITY * self.motor_direction,
+            //     DAMPING_FACTOR,
+            // );
+            self.rigid_body_set
+                .get_mut(impulse_joint.body1)
+                .unwrap()
+                .apply_torque_impulse(self.motor_direction * MOTOR_MAX_TORQUE, true);
+            self.rigid_body_set
+                .get_mut(impulse_joint.body2)
+                .unwrap()
+                .apply_torque_impulse(-self.motor_direction * MOTOR_MAX_TORQUE, true);
+        }
         self.physics_pipeline.step(
-            &vector![0.0, 9.81 * 10.0],
+            &vector![0.0, GRAVITY],
             &self.integration_parameters,
             &mut self.island_manager,
             &mut self.broad_phase,
@@ -201,16 +206,31 @@ impl RobotSimulator {
 
         // Update the robot's capsule positions based on the simulation
         for capsule in self.robot.get_capsules_mut() {
-            if let Some(body_handle) = self.robot_state.get(capsule.id) {
+            if let Some(body_handle) = self.robot_physics_map.get_capsule(capsule.id) {
                 if let Some(body) = self.rigid_body_set.get(body_handle) {
                     let position = body.position().translation;
-                    println!("Updating capsule position: {:?}", position);
                     // extremely important to add the initial rotation offset here
                     let rotation =
                         body.position().rotation.angle() + capsule.get_initial_rotation_offset();
                     let center = Pos2::new(position.x, position.y);
+                    // let half_length = capsule.half_length();
+                    // capsule.update_endpoints(center, half_length, rotation);
                     let half_length = capsule.half_length();
                     capsule.update_endpoints(center, half_length, rotation);
+                }
+            }
+        }
+        // Update the robot's joint positions based on the simulation
+        for joint in self.robot.get_joints_mut() {
+            if let Some(impulse_joint_handle) = self.robot_physics_map.get_joint(joint.id) {
+                if let Some(impulse_joint) = self.impulse_joint_set.get(impulse_joint_handle) {
+                    let body1: &RigidBody = self.rigid_body_set.get(impulse_joint.body1).unwrap();
+                    let local_anchor1: nalgebra::OPoint<f32, nalgebra::Const<2>> = impulse_joint.data.local_anchor1();
+                    let trans1 = body1.position().translation;
+                    joint.set_position(
+                        trans1.x + local_anchor1.x,
+                        trans1.y + local_anchor1.y,
+                    );
                 }
             }
         }
@@ -241,7 +261,6 @@ impl RobotSimulator {
         });
 
         egui::Frame::canvas(ui.style()).show(ui, |ui| {
-            println!("Drawing robot, is_playing: {}", self.is_playing);
             self.update();
             self.robot.draw(
                 ui.painter(),
@@ -250,30 +269,42 @@ impl RobotSimulator {
                 &Vec::new(),
                 &Vec::new(),
             );
+            ui.ctx().request_repaint();
         });
     }
 }
 
 pub struct RobotPhysicsMap {
     capsule_id_to_handle: HashMap<usize, RigidBodyHandle>,
+    joint_id_to_handle: HashMap<usize, ImpulseJointHandle>,
 }
 
 impl RobotPhysicsMap {
     fn new() -> Self {
         RobotPhysicsMap {
             capsule_id_to_handle: HashMap::new(),
+            joint_id_to_handle: HashMap::new(),
         }
     }
 
     fn clear(&mut self) {
         self.capsule_id_to_handle.clear();
+        self.joint_id_to_handle.clear();
     }
 
-    fn insert(&mut self, capsule_id: usize, handle: RigidBodyHandle) {
+    fn insert_capsule(&mut self, capsule_id: usize, handle: RigidBodyHandle) {
         self.capsule_id_to_handle.insert(capsule_id, handle);
     }
 
-    fn get(&self, capsule_id: usize) -> Option<RigidBodyHandle> {
+    fn insert_joint(&mut self, joint_id: usize, handle: ImpulseJointHandle) {
+        self.joint_id_to_handle.insert(joint_id, handle);
+    }
+
+    fn get_capsule(&self, capsule_id: usize) -> Option<RigidBodyHandle> {
         self.capsule_id_to_handle.get(&capsule_id).copied()
+    }
+
+    fn get_joint(&self, joint_id: usize) -> Option<ImpulseJointHandle> {
+        self.joint_id_to_handle.get(&joint_id).copied()
     }
 }

@@ -58,6 +58,10 @@ impl Robot {
     //     self.joints.get_mut(joint_id)
     // }
 
+    pub fn get_joints_mut(&mut self) -> &mut Vec<Joint> {
+        &mut self.joints
+    }
+
     pub fn capsule_center(&self, capsule_id: usize) -> Option<Pos2> {
         self.capsules
             .iter()

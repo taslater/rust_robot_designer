@@ -293,11 +293,25 @@ impl RobotSimulator {
         for joint in self.robot.get_joints_mut() {
             if let Some(impulse_joint_handle) = self.robot_physics_map.get_joint(joint.id) {
                 if let Some(impulse_joint) = self.impulse_joint_set.get(impulse_joint_handle) {
-                    let body1: &RigidBody = self.rigid_body_set.get(impulse_joint.body1).unwrap();
-                    let local_anchor1: nalgebra::OPoint<f32, nalgebra::Const<2>> =
-                        impulse_joint.data.local_anchor1();
-                    let trans1 = body1.position().translation;
-                    joint.set_position(trans1.x + local_anchor1.x, trans1.y + local_anchor1.y);
+                    let body1_pos: &nalgebra::Isometry<f32, nalgebra::Unit<nalgebra::Complex<f32>>, 2> =
+                        self.rigid_body_set
+                            .get(impulse_joint.body1)
+                            .unwrap()
+                            .position();
+                    let local_frame1: nalgebra::Isometry<
+                        f32,
+                        nalgebra::Unit<nalgebra::Complex<f32>>,
+                        2,
+                    > = impulse_joint.data.local_frame1;
+                    let local_combined1: nalgebra::Isometry<
+                        f32,
+                        nalgebra::Unit<nalgebra::Complex<f32>>,
+                        2,
+                    > = body1_pos * local_frame1;
+                    joint.set_position(
+                        local_combined1.translation.vector.x,
+                        local_combined1.translation.vector.y,
+                    );
                 }
             }
         }

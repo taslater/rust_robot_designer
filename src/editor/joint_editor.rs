@@ -110,8 +110,8 @@ impl JointEditor {
                 y: pointer_pos.y,
                 capsule1_id: self.selected_capsules[0],
                 capsule2_id: self.selected_capsules[1],
-                min: 0.0,
-                max: 1.0,
+                min: -0.5,
+                max: 0.5,
             };
             robot.add_joint(joint);
             joint_created = true;

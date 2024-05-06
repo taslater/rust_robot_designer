@@ -318,9 +318,11 @@ impl RobotSimulator {
                         nalgebra::Unit<nalgebra::Complex<f32>>,
                         2,
                     > = body1_pos * local_frame1;
+                    let rendering_position1 =
+                        to_rendering_coords(pos2(local_combined1.translation.vector.x, local_combined1.translation.vector.y));
                     joint.set_position(
-                        local_combined1.translation.vector.x,
-                        local_combined1.translation.vector.y,
+                        rendering_position1.x,
+                        rendering_position1.y,
                     );
                 }
             }

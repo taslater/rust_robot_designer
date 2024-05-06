@@ -1,7 +1,7 @@
-use crate::constants::GRAVITY;
+use crate::constants::{GRAVITY, PHYSICS_SCALE};
 use crate::model::robot::Robot;
-use egui::Pos2;
-use nalgebra::Point2;
+use egui::{pos2, Pos2};
+use nalgebra::{point, Point2};
 use rapier2d::prelude::*;
 use std::collections::HashMap;
 
@@ -12,10 +12,22 @@ const GROUND_X: f32 = 0.0;
 const GROUND_Y: f32 = 400.0 - GROUND_HEIGHT / 2.0;
 
 const STEP_COUNT: usize = 300; // Number of steps before flipping direction
-const TARGET_VELOCITY: f32 = 1e3; // 1e6; // Velocity of the motor
+const TARGET_VELOCITY: f32 = 1e1; // 1e6; // Velocity of the motor
 const DAMPING_FACTOR: f32 = 1.0; // Damping factor for the motor
 
-// const MOTOR_MAX_TORQUE: f32 = 1e6; // Max torque of the motor
+fn to_physics_coords(rendering_coords: Pos2) -> Pos2 {
+    pos2(
+        rendering_coords.x * PHYSICS_SCALE,
+        rendering_coords.y * PHYSICS_SCALE,
+    )
+}
+
+fn to_rendering_coords(physics_coords: Pos2) -> Pos2 {
+    pos2(
+        physics_coords.x / PHYSICS_SCALE,
+        physics_coords.y / PHYSICS_SCALE,
+    )
+}
 
 pub(crate) struct RobotSimulator {
     robot: Robot,
@@ -75,8 +87,9 @@ impl RobotSimulator {
     fn get_pt_offset(&self, capsule_id: usize, pt: &Point2<f32>) -> Option<Point2<f32>> {
         let capsule_center_option: Option<Pos2> = self.robot.capsule_center(capsule_id);
         if let Some(capsule_center) = capsule_center_option {
-            let offset_x: f32 = pt.x - capsule_center.x;
-            let offset_y: f32 = pt.y - capsule_center.y;
+            let physics_capsule_center = to_physics_coords(capsule_center);
+            let offset_x: f32 = pt.x - physics_capsule_center.x;
+            let offset_y: f32 = pt.y - physics_capsule_center.y;
             Some(Point2::new(offset_x, offset_y))
         } else {
             None
@@ -143,18 +156,6 @@ impl RobotSimulator {
             true,
         );
 
-        // self.query_pipeline = QueryPipeline::new();
-        // self.ccd_solver = CCDSolver::new();
-        // self.narrow_phase = NarrowPhase::new();
-        // self.broad_phase = BroadPhase::new();
-        // self.island_manager = IslandManager::new();
-        // self.physics_pipeline = PhysicsPipeline::new();
-
-        // Clear existing physics objects
-        // self.rigid_body_set = RigidBodySet::new();
-        // self.collider_set = ColliderSet::new();
-        // self.impulse_joint_set = ImpulseJointSet::new();
-        // self.multibody_joint_set = MultibodyJointSet::new();
         self.robot_physics_map.clear();
     }
 
@@ -164,14 +165,18 @@ impl RobotSimulator {
 
         // Create the capsules and populate the robot state
         for capsule in self.robot.get_capsules() {
+            let physics_center = to_physics_coords(capsule.center());
             let rigid_body = RigidBodyBuilder::dynamic()
-                .translation(vector![capsule.center().x, capsule.center().y])
+                .translation(vector![physics_center.x, physics_center.y])
+                .can_sleep(false)
                 .build();
-            let (offset_x, offset_y) = capsule.offset_points();
-            let pt_a: nalgebra::OPoint<f32, nalgebra::Const<2>> = point![offset_x, offset_y];
-            let pt_b: nalgebra::OPoint<f32, nalgebra::Const<2>> = point![-offset_x, -offset_y];
+            let (physics_offset_x, physics_offset_y) = capsule.offset_points_physics();
+            let pt_a: nalgebra::OPoint<f32, nalgebra::Const<2>> =
+                point![physics_offset_x, physics_offset_y];
+            let pt_b: nalgebra::OPoint<f32, nalgebra::Const<2>> =
+                point![-physics_offset_x, -physics_offset_y];
             let collider =
-                ColliderBuilder::new(SharedShape::capsule(pt_a, pt_b, capsule.radius / 2.0))
+                ColliderBuilder::new(SharedShape::capsule(pt_a, pt_b, capsule.radius * PHYSICS_SCALE / 2.0))
                     .collision_groups(InteractionGroups::new(0b0010.into(), 0b0001.into()))
                     .build();
             let body_handle: RigidBodyHandle = self.rigid_body_set.insert(rigid_body);
@@ -188,21 +193,29 @@ impl RobotSimulator {
                 self.robot_physics_map.get_capsule(capsule1_id).unwrap();
             let body_handle2: RigidBodyHandle =
                 self.robot_physics_map.get_capsule(capsule2_id).unwrap();
-            let joint_pos: Point2<f32> = joint.position();
-            let offset1_opt: Option<nalgebra::OPoint<f32, nalgebra::Const<2>>> =
-                self.get_pt_offset(capsule1_id, &joint_pos);
-            // early exit if the offset is None
-            if offset1_opt.is_none() {
+            // let joint_pos: Point2<f32> = joint.position();
+            // let offset1_opt: Option<nalgebra::OPoint<f32, nalgebra::Const<2>>> =
+            //     self.get_pt_offset(capsule1_id, &joint_pos);
+            let position: nalgebra::OPoint<f32, nalgebra::Const<2>> = joint.position();
+            let physics_joint_pos: Pos2 = to_physics_coords(pos2(position.x, position.y));
+            let physics_offset1_opt: Option<nalgebra::OPoint<f32, nalgebra::Const<2>>> = self
+                .get_pt_offset(
+                    capsule1_id,
+                    &point![physics_joint_pos.x, physics_joint_pos.y],
+                );
+            if physics_offset1_opt.is_none() {
                 continue;
             }
-            let offset2_opt: Option<nalgebra::OPoint<f32, nalgebra::Const<2>>> =
-                self.get_pt_offset(capsule2_id, &joint_pos);
-            // early exit if the offset is None
-            if offset2_opt.is_none() {
+            let physics_offset2_opt: Option<nalgebra::OPoint<f32, nalgebra::Const<2>>> = self
+                .get_pt_offset(
+                    capsule2_id,
+                    &point![physics_joint_pos.x, physics_joint_pos.y],
+                );
+            if physics_offset2_opt.is_none() {
                 continue;
             }
-            let offset1: nalgebra::OPoint<f32, nalgebra::Const<2>> = offset1_opt.unwrap();
-            let offset2: nalgebra::OPoint<f32, nalgebra::Const<2>> = offset2_opt.unwrap();
+            let offset1: nalgebra::OPoint<f32, nalgebra::Const<2>> = physics_offset1_opt.unwrap();
+            let offset2: nalgebra::OPoint<f32, nalgebra::Const<2>> = physics_offset2_opt.unwrap();
             if body_handle1 != body_handle2 {
                 let revolute_joint: RevoluteJoint = RevoluteJointBuilder::new()
                     .local_anchor1(offset1)
@@ -221,11 +234,12 @@ impl RobotSimulator {
         }
 
         // Create the ground
-        let ground_collider = ColliderBuilder::cuboid(GROUND_WIDTH, GROUND_HEIGHT)
-            .translation(vector![GROUND_X, GROUND_Y])
-            .restitution(GROUND_RESTITUTION)
-            .collision_groups(InteractionGroups::new(0b0001.into(), 0b1111.into()))
-            .build();
+        let ground_collider =
+            ColliderBuilder::cuboid(GROUND_WIDTH * PHYSICS_SCALE, GROUND_HEIGHT * PHYSICS_SCALE)
+                .translation(vector![GROUND_X * PHYSICS_SCALE, GROUND_Y * PHYSICS_SCALE])
+                .restitution(GROUND_RESTITUTION)
+                .collision_groups(InteractionGroups::new(0b0001.into(), 0b1111.into()))
+                .build();
         self.collider_set.insert(ground_collider);
 
         &self.robot_physics_map
@@ -247,14 +261,6 @@ impl RobotSimulator {
                 TARGET_VELOCITY * self.motor_direction,
                 DAMPING_FACTOR,
             );
-            // self.rigid_body_set
-            //     .get_mut(impulse_joint.body1)
-            //     .unwrap()
-            //     .apply_torque_impulse(self.motor_direction * MOTOR_MAX_TORQUE, true);
-            // self.rigid_body_set
-            //     .get_mut(impulse_joint.body2)
-            //     .unwrap()
-            //     .apply_torque_impulse(-self.motor_direction * MOTOR_MAX_TORQUE, true);
         }
 
         self.physics_pipeline.step(
@@ -277,15 +283,14 @@ impl RobotSimulator {
         for capsule in self.robot.get_capsules_mut() {
             if let Some(body_handle) = self.robot_physics_map.get_capsule(capsule.id) {
                 if let Some(body) = self.rigid_body_set.get(body_handle) {
-                    let position = body.position().translation;
+                    let physics_position = body.position().translation;
                     // extremely important to add the initial rotation offset here
                     let rotation =
                         body.position().rotation.angle() + capsule.get_initial_rotation_offset();
-                    let center = Pos2::new(position.x, position.y);
-                    // let half_length = capsule.half_length();
-                    // capsule.update_endpoints(center, half_length, rotation);
-                    let half_length = capsule.half_length();
-                    capsule.update_endpoints(center, half_length, rotation);
+                    let rendering_position =
+                        to_rendering_coords(pos2(physics_position.x, physics_position.y));
+                    let rendering_half_length = capsule.half_length();
+                    capsule.update_endpoints(rendering_position, rendering_half_length, rotation);
                 }
             }
         }
@@ -293,11 +298,15 @@ impl RobotSimulator {
         for joint in self.robot.get_joints_mut() {
             if let Some(impulse_joint_handle) = self.robot_physics_map.get_joint(joint.id) {
                 if let Some(impulse_joint) = self.impulse_joint_set.get(impulse_joint_handle) {
-                    let body1_pos: &nalgebra::Isometry<f32, nalgebra::Unit<nalgebra::Complex<f32>>, 2> =
-                        self.rigid_body_set
-                            .get(impulse_joint.body1)
-                            .unwrap()
-                            .position();
+                    let body1_pos: &nalgebra::Isometry<
+                        f32,
+                        nalgebra::Unit<nalgebra::Complex<f32>>,
+                        2,
+                    > = self
+                        .rigid_body_set
+                        .get(impulse_joint.body1)
+                        .unwrap()
+                        .position();
                     let local_frame1: nalgebra::Isometry<
                         f32,
                         nalgebra::Unit<nalgebra::Complex<f32>>,

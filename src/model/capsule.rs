@@ -3,6 +3,7 @@ use egui::epaint::Shape;
 use egui::{pos2, Color32, Pos2, Stroke};
 use geo::relate::Relate;
 use geo::{polygon, Polygon};
+use crate::constants::PHYSICS_SCALE;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Capsule {
@@ -132,12 +133,33 @@ impl Capsule {
         rotation
     }
 
-    pub fn offset_points(&self) -> (f32, f32) {
+    // pub fn point1_physics(&self) -> Pos2 {
+    //     pos2(self.point1.x * PHYSICS_SCALE, self.point1.y * PHYSICS_SCALE)
+    // }
+
+    // pub fn point2_physics(&self) -> Pos2 {
+    //     pos2(self.point2.x * PHYSICS_SCALE, self.point2.y * PHYSICS_SCALE)
+    // }
+
+    // pub fn radius_physics(&self) -> f32 {
+    //     self.radius * PHYSICS_SCALE
+    // }
+
+    // pub fn offset_points(&self) -> (f32, f32) {
+    //     let cos_rot = self.initial_rotation_offset.cos();
+    //     let sin_rot = self.initial_rotation_offset.sin();
+    //     let offset_x = self.half_length() * cos_rot;
+    //     let offset_y = self.half_length() * sin_rot;
+    //     (offset_x, offset_y)
+    // }
+
+    pub fn offset_points_physics(&self) -> (f32, f32) {
         let cos_rot = self.initial_rotation_offset.cos();
         let sin_rot = self.initial_rotation_offset.sin();
-        let offset_x = self.half_length() * cos_rot;
-        let offset_y = self.half_length() * sin_rot;
-        (offset_x, offset_y)
+        let physics_half_length = self.half_length() * PHYSICS_SCALE;
+        let physics_offset_x = physics_half_length * cos_rot;
+        let physics_offset_y = physics_half_length * sin_rot;
+        (physics_offset_x, physics_offset_y)
     }
 
     pub fn update_endpoints(&mut self, center: Pos2, half_length: f32, rotation: f32) {

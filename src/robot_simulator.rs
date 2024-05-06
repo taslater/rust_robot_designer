@@ -13,7 +13,8 @@ const GROUND_Y: f32 = 400.0 - GROUND_HEIGHT / 2.0;
 
 const STEP_COUNT: usize = 300; // Number of steps before flipping direction
 const TARGET_VELOCITY: f32 = 1e1; // 1e6; // Velocity of the motor
-const DAMPING_FACTOR: f32 = 1.0; // Damping factor for the motor
+const DAMPING_FACTOR: f32 = 100.0; // Damping factor for the motor
+const MAX_FORCE: f32 = 5_000.0; // Maximum force applied by the motor
 
 fn to_physics_coords(rendering_coords: Pos2) -> Pos2 {
     pos2(
@@ -221,7 +222,7 @@ impl RobotSimulator {
                     .local_anchor1(offset1)
                     .local_anchor2(offset2)
                     .motor_model(MotorModel::AccelerationBased)
-                    .motor_max_force(f32::MAX)
+                    .motor_max_force(MAX_FORCE)
                     .motor_velocity(TARGET_VELOCITY, DAMPING_FACTOR)
                     .limits([joint.min, joint.max])
                     .build();

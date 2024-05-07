@@ -1,20 +1,20 @@
-use crate::constants::{GRAVITY, PHYSICS_SCALE};
+use crate::constants::{
+    CAPSULE_FRICTION, CAPSULE_RESTITUTION, GRAVITY, GROUND_RESTITUTION, MOTOR_DAMPING,
+    MOTOR_MAX_FORCE, PHYSICS_SCALE, TARGET_VELOCITY,
+};
 use crate::model::robot::Robot;
 use egui::{pos2, Pos2};
 use nalgebra::{point, Point2};
 use rapier2d::prelude::*;
 use std::collections::HashMap;
+// use std::num::NonZeroUsize;
 
-const GROUND_WIDTH: f32 = 1000.0;
-const GROUND_HEIGHT: f32 = 10.0;
-const GROUND_RESTITUTION: f32 = 0.0;
+const GROUND_WIDTH: f32 = 1e6;
+const GROUND_HEIGHT: f32 = 100.0;
 const GROUND_X: f32 = 0.0;
-const GROUND_Y: f32 = 400.0 - GROUND_HEIGHT / 2.0;
+const GROUND_Y: f32 = 400.0 + GROUND_HEIGHT / 2.0;
 
-const STEP_COUNT: usize = 300; // Number of steps before flipping direction
-const TARGET_VELOCITY: f32 = 1e1; // 1e6; // Velocity of the motor
-const DAMPING_FACTOR: f32 = 100.0; // Damping factor for the motor
-const MAX_FORCE: f32 = 5_000.0; // Maximum force applied by the motor
+const STEP_COUNT: usize = 500; // Number of steps before flipping direction
 
 fn to_physics_coords(rendering_coords: Pos2) -> Pos2 {
     pos2(
@@ -52,10 +52,16 @@ pub(crate) struct RobotSimulator {
 
 impl RobotSimulator {
     pub fn new() -> Self {
-        let integration_parameters = IntegrationParameters {
+        let mut integration_parameters = IntegrationParameters {
             dt: 1.0 / 60.0,
+            // min_ccd_dt: 1.0 / 120.0,
+            // erp: 0.8,
+            // joint_erp: 0.1,
+            // num_solver_iterations: NonZeroUsize::new(8).unwrap(),
+            // max_ccd_substeps: 20,
             ..Default::default()
         };
+        integration_parameters.switch_to_small_steps_pgs_solver();
         let physics_pipeline = PhysicsPipeline::new();
         let island_manager = IslandManager::new();
         let broad_phase = BroadPhase::new();
@@ -176,10 +182,15 @@ impl RobotSimulator {
                 point![physics_offset_x, physics_offset_y];
             let pt_b: nalgebra::OPoint<f32, nalgebra::Const<2>> =
                 point![-physics_offset_x, -physics_offset_y];
-            let collider =
-                ColliderBuilder::new(SharedShape::capsule(pt_a, pt_b, capsule.radius * PHYSICS_SCALE / 2.0))
-                    .collision_groups(InteractionGroups::new(0b0010.into(), 0b0001.into()))
-                    .build();
+            let collider = ColliderBuilder::new(SharedShape::capsule(
+                pt_a,
+                pt_b,
+                capsule.radius * PHYSICS_SCALE / 2.0,
+            ))
+            .collision_groups(InteractionGroups::new(0b0010.into(), 0b0001.into()))
+            .restitution(CAPSULE_RESTITUTION)
+            .friction(CAPSULE_FRICTION)
+            .build();
             let body_handle: RigidBodyHandle = self.rigid_body_set.insert(rigid_body);
             self.collider_set
                 .insert_with_parent(collider, body_handle, &mut self.rigid_body_set);
@@ -222,8 +233,8 @@ impl RobotSimulator {
                     .local_anchor1(offset1)
                     .local_anchor2(offset2)
                     .motor_model(MotorModel::AccelerationBased)
-                    .motor_max_force(MAX_FORCE)
-                    .motor_velocity(TARGET_VELOCITY, DAMPING_FACTOR)
+                    .motor_max_force(MOTOR_MAX_FORCE)
+                    .motor_velocity(TARGET_VELOCITY, MOTOR_DAMPING)
                     .limits([joint.min, joint.max])
                     .build();
                 let impulse_joint_handle =
@@ -260,7 +271,7 @@ impl RobotSimulator {
             impulse_joint.data.set_motor_velocity(
                 JointAxis::AngX,
                 TARGET_VELOCITY * self.motor_direction,
-                DAMPING_FACTOR,
+                MOTOR_DAMPING,
             );
         }
 
@@ -318,12 +329,11 @@ impl RobotSimulator {
                         nalgebra::Unit<nalgebra::Complex<f32>>,
                         2,
                     > = body1_pos * local_frame1;
-                    let rendering_position1 =
-                        to_rendering_coords(pos2(local_combined1.translation.vector.x, local_combined1.translation.vector.y));
-                    joint.set_position(
-                        rendering_position1.x,
-                        rendering_position1.y,
-                    );
+                    let rendering_position1 = to_rendering_coords(pos2(
+                        local_combined1.translation.vector.x,
+                        local_combined1.translation.vector.y,
+                    ));
+                    joint.set_position(rendering_position1.x, rendering_position1.y);
                 }
             }
         }

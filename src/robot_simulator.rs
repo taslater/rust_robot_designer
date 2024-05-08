@@ -7,7 +7,6 @@ use egui::{pos2, Pos2};
 use nalgebra::{point, Point2};
 use rapier2d::prelude::*;
 use std::collections::HashMap;
-// use std::num::NonZeroUsize;
 
 const GROUND_WIDTH: f32 = 1e6;
 const GROUND_HEIGHT: f32 = 100.0;
@@ -54,11 +53,6 @@ impl RobotSimulator {
     pub fn new() -> Self {
         let mut integration_parameters = IntegrationParameters {
             dt: 1.0 / 60.0,
-            // min_ccd_dt: 1.0 / 120.0,
-            // erp: 0.8,
-            // joint_erp: 0.1,
-            // num_solver_iterations: NonZeroUsize::new(8).unwrap(),
-            // max_ccd_substeps: 20,
             ..Default::default()
         };
         integration_parameters.switch_to_small_steps_pgs_solver();

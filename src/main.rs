@@ -8,10 +8,9 @@ mod editor;
 mod model;
 mod robot_simulator;
 mod physics_world;
-mod robot_physics_builder;
+mod robot_physics;
 pub mod constants;
 mod robot_trainer;
-mod robot_physics_updater;
 
 use robot_trainer::RobotTrainer;
 

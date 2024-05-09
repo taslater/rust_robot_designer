@@ -1,15 +1,14 @@
 use crate::model::robot::Robot;
-use crate::physics_world::{to_rendering_coords, PhysicsWorld, flat_ground_collider};
-use crate::robot_physics_builder::{RobotPhysicsBuilder, RobotPhysicsHandles};
-use egui::pos2;
-use crate::robot_physics_updater::RobotPhysicsUpdater;
+use crate::physics_world::{flat_ground_collider, PhysicsWorld};
+use crate::robot_physics::RobotPhysics;
 
 const POPULATION_SIZE: usize = 10;
 
 pub struct RobotTrainer {
     physics_world: PhysicsWorld,
     population: Vec<Robot>,
-    population_handles: Vec<RobotPhysicsHandles>,
+    // population_handles: Vec<RobotPhysicsHandles>,
+    population_physics: Vec<RobotPhysics>,
     is_playing: bool,
 }
 
@@ -18,36 +17,34 @@ impl RobotTrainer {
         RobotTrainer {
             physics_world: PhysicsWorld::new(),
             population: Vec::with_capacity(POPULATION_SIZE),
-            population_handles: Vec::with_capacity(POPULATION_SIZE),
+            // population_handles: Vec::with_capacity(POPULATION_SIZE),
+            population_physics: Vec::with_capacity(POPULATION_SIZE),
             is_playing: false,
         }
     }
 
     fn clear(&mut self) {
         self.physics_world.clear();
-        // self.robot_physics_map.clear();
     }
 
     pub fn init_physics(&mut self, robot: &Robot) {
-        println!("Initializing physics");
         self.clear();
 
         let mut population = Vec::with_capacity(POPULATION_SIZE);
-        let mut population_handles: Vec<RobotPhysicsHandles> = Vec::with_capacity(POPULATION_SIZE);
+        let mut population_physics = Vec::with_capacity(POPULATION_SIZE);
 
         for _ in 0..POPULATION_SIZE {
             let mut robot = robot.clone();
-            let robot_handles =
-                RobotPhysicsBuilder::build_robot(&mut robot, &mut self.physics_world);
+            let mut robot_physics = RobotPhysics::new();
+            robot_physics.build_robot(&mut robot, &mut self.physics_world);
             population.push(robot);
-            population_handles.push(robot_handles);
+            population_physics.push(robot_physics);
         }
 
-        // Create the ground
-        let _ = self.physics_world.add_collider(flat_ground_collider());
-
         self.population = population;
-        self.population_handles = population_handles;
+        self.population_physics = population_physics;
+
+        let _ = self.physics_world.add_collider(flat_ground_collider());
     }
 
     // pub fn train(&mut self, num_generations: usize) {
@@ -83,8 +80,8 @@ impl RobotTrainer {
 
         self.physics_world.step();
 
-        for (robot, robot_handles) in self.population.iter_mut().zip(&self.population_handles) {
-            RobotPhysicsUpdater::update_robot_physics(robot, &self.physics_world, robot_handles);
+        for (robot, robot_physics) in self.population.iter_mut().zip(&self.population_physics) {
+            robot_physics.update_robot_physics(robot, &self.physics_world);
         }
     }
 

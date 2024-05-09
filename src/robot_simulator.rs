@@ -1,13 +1,12 @@
 use crate::model::robot::Robot;
 use crate::physics_world::{flat_ground_collider, PhysicsWorld};
-use crate::robot_physics_builder::{RobotPhysicsBuilder, RobotPhysicsHandles};
-use crate::robot_physics_updater::RobotPhysicsUpdater;
+use crate::robot_physics::RobotPhysics;
 
 const STEP_COUNT: usize = 500; // Number of steps before flipping direction
 
 pub(crate) struct RobotSimulator {
     robot: Robot,
-    robot_physics_handles: RobotPhysicsHandles,
+    robot_physics: RobotPhysics,
     physics_world: PhysicsWorld,
     is_playing: bool,
     step_counter: usize,
@@ -18,7 +17,7 @@ impl RobotSimulator {
     pub fn new() -> Self {
         RobotSimulator {
             robot: Robot::new(),
-            robot_physics_handles: RobotPhysicsHandles::new(),
+            robot_physics: RobotPhysics::new(),
             physics_world: PhysicsWorld::new(),
             is_playing: false,
             step_counter: 0,
@@ -28,20 +27,13 @@ impl RobotSimulator {
 
     fn clear(&mut self) {
         self.physics_world.clear();
-        self.robot_physics_handles.clear();
+        self.robot_physics.clear();
     }
 
     pub fn init_physics(&mut self, robot: &Robot) {
         self.clear();
         self.robot = robot.clone();
-
-        let robot_handles =
-            RobotPhysicsBuilder::build_robot(&mut self.robot, &mut self.physics_world);
-        // Populate the robot_physics_map
-        self.robot_physics_handles.capsule_handles = robot_handles.capsule_handles;
-        self.robot_physics_handles.joint_handles = robot_handles.joint_handles;
-
-        // Create the ground
+        self.robot_physics.build_robot(&mut self.robot, &mut self.physics_world);
         let _ = self.physics_world.add_collider(flat_ground_collider());
     }
 
@@ -62,11 +54,12 @@ impl RobotSimulator {
         self.physics_world.step();
 
         // Update the robot's capsule positions based on the simulation
-        RobotPhysicsUpdater::update_robot_physics(
-            &mut self.robot,
-            &self.physics_world,
-            &self.robot_physics_handles,
-        );
+        // RobotPhysicsUpdater::update_robot_physics(
+        //     &mut self.robot,
+        //     &self.physics_world,
+        //     &self.robot_physics,
+        // );
+        self.robot_physics.update_robot_physics(&mut self.robot, &self.physics_world);
     }
 
     pub fn toggle_playback(&mut self) {

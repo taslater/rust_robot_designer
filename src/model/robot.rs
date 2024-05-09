@@ -3,7 +3,7 @@ use super::capsule::{
     Capsule, CapsuleColors, CapsulePoint, CapsulePointId, PointInsideCapsule, PointType,
     SelectionLevel,
 };
-use crate::editor::capsule_editor::OverlappingCapsules;
+use crate::{editor::capsule_editor::OverlappingCapsules, physics_world};
 use crate::model::joint::Joint;
 use eframe::egui;
 use egui::{Color32, Pos2};
@@ -62,12 +62,12 @@ impl Robot {
         &mut self.joints
     }
 
-    pub fn capsule_center(&self, capsule_id: usize) -> Option<Pos2> {
-        self.capsules
-            .iter()
-            .find(|capsule| capsule.id == capsule_id)
-            .map(|capsule| capsule.center())
-    }
+    // pub fn capsule_center(&self, capsule_id: usize) -> Option<Pos2> {
+    //     self.capsules
+    //         .iter()
+    //         .find(|capsule| capsule.id == capsule_id)
+    //         .map(|capsule| capsule.center())
+    // }
 
     pub fn add_capsule(&mut self, start_point: Pos2, end_point: Pos2, radius: f32) {
         let capsule_id = generate_capsule_id();
@@ -294,6 +294,26 @@ impl Robot {
 
     pub fn get_joint_count(&self) -> usize {
         self.joints.len()
+    }
+
+    // pub fn update_impulse_joints(&mut self, motor_directions: &[f32]) {
+    //     for (index, (_joint_handle, impulse_joint)) in self.impulse_joint_set.iter_mut().enumerate() {
+    //         if let Some(motor_direction) = motor_directions.get(index) {
+    //             impulse_joint.data.set_motor_velocity(
+    //                 JointAxis::AngX,
+    //                 TARGET_VELOCITY * motor_direction,
+    //                 MOTOR_DAMPING,
+    //             );
+    //         }
+    //     }
+    // }
+
+    pub fn update_joint_motor_directions(&mut self, motor_directions: &[f32], physics_world: &mut physics_world::PhysicsWorld) {
+        for (index, joint) in self.joints.iter_mut().enumerate() {
+            if let Some(motor_direction) = motor_directions.get(index) {
+                joint.set_motor_direction(*motor_direction, physics_world);
+            }
+        }
     }
 
     pub fn draw(

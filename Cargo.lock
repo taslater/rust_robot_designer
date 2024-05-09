@@ -671,6 +671,7 @@ dependencies = [
  "egui_extras",
  "env_logger",
  "geo",
+ "rand",
  "rapier2d",
 ]
 

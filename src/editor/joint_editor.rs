@@ -112,6 +112,7 @@ impl JointEditor {
                 capsule2_id: self.selected_capsules[1],
                 min: -0.5,
                 max: 0.5,
+                impulse_joint_handle: None,
             };
             robot.add_joint(joint);
             joint_created = true;
@@ -287,11 +288,11 @@ impl JointEditor {
         painter.circle_stroke(pointer_pos, 5.0, Stroke::new(2.0, Color32::GREEN));
     }
 
-    fn draw_update_visualization(&self, painter: &egui::Painter, pointer_pos: Pos2) {
+    fn draw_update_visualization(&self, _painter: &egui::Painter, _pointer_pos: Pos2) {
         // TODO: Implement update visualization for joints
     }
 
-    fn draw_delete_visualization(&self, painter: &egui::Painter, pointer_pos: Pos2) {
+    fn draw_delete_visualization(&self, _painter: &egui::Painter, _pointer_pos: Pos2) {
         // TODO: Implement delete visualization for joints
     }
 }

@@ -158,7 +158,7 @@ impl CapsuleEditor {
         editing_state: &mut EditingState,
         pointer_pos: Pos2,
         response: &egui::Response,
-        robot: &mut Robot
+        robot: &mut Robot,
     ) {
         match *editing_state {
             EditingState::Create => {
@@ -190,11 +190,7 @@ impl CapsuleEditor {
             .selected_capsule_points
             .iter_mut()
             .map(|point| {
-                if let Some(Pos2 { x, y }) = 
-                    robot
-                    .get_capsule_point_pos(point.capsule_point_id)
-                {
-                    println!("x: {}, y: {}", x, y);
+                if let Some(Pos2 { x, y }) = robot.get_capsule_point_pos(point.capsule_point_id) {
                     CapsulePoint {
                         capsule_point_id: point.capsule_point_id,
                         x,
@@ -282,11 +278,11 @@ impl CapsuleEditor {
         }
     }
 
-    fn draw_update_visualization(&self, painter: &egui::Painter, pointer_pos: Pos2) {
+    fn draw_update_visualization(&self, _painter: &egui::Painter, _pointer_pos: Pos2) {
         // TODO: Implement update visualization for capsules
     }
 
-    fn draw_delete_visualization(&self, painter: &egui::Painter, pointer_pos: Pos2) {
+    fn draw_delete_visualization(&self, _painter: &egui::Painter, _pointer_pos: Pos2) {
         // TODO: Implement delete visualization for capsules
     }
 }

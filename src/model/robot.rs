@@ -8,6 +8,10 @@ use crate::model::joint::Joint;
 use eframe::egui;
 use egui::{Color32, Pos2};
 
+use rand::Rng;
+
+
+
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 static CAPSULE_ID_COUNTER: AtomicUsize = AtomicUsize::new(1);
@@ -68,6 +72,17 @@ impl Robot {
     //         .find(|capsule| capsule.id == capsule_id)
     //         .map(|capsule| capsule.center())
     // }
+
+    pub fn update_motors(&mut self, physics_world: &mut physics_world::PhysicsWorld) {
+        let mut rng = rand::thread_rng();
+        let motor_directions: Vec<f32> = self
+            .joints
+            .iter()
+            .map(|_| rng.gen_range(-1.0..=1.0))
+            .collect();
+
+        self.update_joint_motor_directions(&motor_directions, physics_world);
+    }
 
     pub fn add_capsule(&mut self, start_point: Pos2, end_point: Pos2, radius: f32) {
         let capsule_id = generate_capsule_id();

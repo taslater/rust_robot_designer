@@ -2,7 +2,7 @@ use crate::model::robot::Robot;
 use crate::physics_world::{to_rendering_coords, PhysicsWorld, flat_ground_collider};
 use crate::robot_physics_builder::{RobotPhysicsBuilder, RobotPhysicsHandles};
 use egui::pos2;
-use rand::Rng;
+use crate::robot_physics_updater::RobotPhysicsUpdater;
 
 const POPULATION_SIZE: usize = 10;
 
@@ -77,74 +77,14 @@ impl RobotTrainer {
             return;
         }
 
-        // Generate random motor directions for each robot
-        let mut motor_directions: Vec<Vec<f32>> = Vec::new();
-        for robot_handle in &self.population_handles {
-            let num_joints = robot_handle.joint_handles.len();
-            let mut robot_motor_directions: Vec<f32> = Vec::with_capacity(num_joints);
-            for _ in 0..num_joints {
-                let random_direction = rand::thread_rng().gen_range(-1.0..=1.0);
-                robot_motor_directions.push(random_direction);
-            }
-            motor_directions.push(robot_motor_directions);
-        }
-
-        // Update the impulse joints with the random motor directions
-        for (robot_index, robot_motor_directions) in motor_directions.iter().enumerate() {
-            // self.physics_world
-            //     .update_impulse_joints(robot_motor_directions);
-            // self.robot
-            // .update_joint_motor_directions(motor_directions, &mut self.physics_world);
-            self.population
-                .get_mut(robot_index)
-                .unwrap()
-                .update_joint_motor_directions(robot_motor_directions, &mut self.physics_world);
+        for robot in &mut self.population {
+            robot.update_motors(&mut self.physics_world);
         }
 
         self.physics_world.step();
 
-        // Update the robots' positions and rotations based on the physics simulation
         for (robot, robot_handles) in self.population.iter_mut().zip(&self.population_handles) {
-            // Update the robot's capsule positions and rotations
-            for capsule in robot.get_capsules_mut() {
-                if let Some(body_handle) = robot_handles.capsule_handles.get(&capsule.id) {
-                    if let Some(body) = self.physics_world.get_rigid_body(*body_handle) {
-                        let physics_position = body.position().translation;
-                        let rotation = body.position().rotation.angle()
-                            + capsule.get_initial_rotation_offset();
-                        let rendering_position =
-                            to_rendering_coords(pos2(physics_position.x, physics_position.y));
-                        let rendering_half_length = capsule.half_length();
-                        capsule.update_endpoints(
-                            rendering_position,
-                            rendering_half_length,
-                            rotation,
-                        );
-                    }
-                }
-            }
-
-            // Update the robot's joint positions
-            for joint in robot.get_joints_mut() {
-                if let Some(impulse_joint_handle) = robot_handles.joint_handles.get(&joint.id) {
-                    if let Some(impulse_joint) =
-                        self.physics_world.get_impulse_joint(*impulse_joint_handle)
-                    {
-                        let body1_pos = self
-                            .physics_world
-                            .get_rigid_body(impulse_joint.body1)
-                            .unwrap()
-                            .position();
-                        let local_frame1 = impulse_joint.data.local_frame1;
-                        let local_combined1 = body1_pos * local_frame1;
-                        let rendering_position1 = to_rendering_coords(pos2(
-                            local_combined1.translation.vector.x,
-                            local_combined1.translation.vector.y,
-                        ));
-                        joint.set_position(rendering_position1.x, rendering_position1.y);
-                    }
-                }
-            }
+            RobotPhysicsUpdater::update_robot_physics(robot, &self.physics_world, robot_handles);
         }
     }
 

@@ -141,3 +141,17 @@ pub struct RobotPhysicsHandles {
     pub capsule_handles: HashMap<usize, RigidBodyHandle>,
     pub joint_handles: HashMap<usize, ImpulseJointHandle>,
 }
+
+impl RobotPhysicsHandles {
+    pub fn new() -> Self {
+        RobotPhysicsHandles {
+            capsule_handles: HashMap::new(),
+            joint_handles: HashMap::new(),
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.capsule_handles.clear();
+        self.joint_handles.clear();
+    }
+}

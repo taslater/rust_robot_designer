@@ -11,6 +11,7 @@ mod physics_world;
 mod robot_physics_builder;
 pub mod constants;
 mod robot_trainer;
+mod robot_physics_updater;
 
 use robot_trainer::RobotTrainer;
 

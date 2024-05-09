@@ -20,13 +20,6 @@ pub fn to_rendering_coords(physics_coords: Pos2) -> Pos2 {
     )
 }
 
-// let ground_collider =
-// ColliderBuilder::cuboid(GROUND_WIDTH * PHYSICS_SCALE, GROUND_HEIGHT * PHYSICS_SCALE)
-//     .translation(vector![GROUND_X * PHYSICS_SCALE, GROUND_Y * PHYSICS_SCALE])
-//     .restitution(GROUND_RESTITUTION)
-//     .friction(GROUND_FRICTION)
-//     .collision_groups(InteractionGroups::new(0b0001.into(), 0b1111.into()))
-//     .build()
 pub fn flat_ground_collider() -> Collider {
     ColliderBuilder::cuboid(GROUND_WIDTH * PHYSICS_SCALE, GROUND_HEIGHT * PHYSICS_SCALE)
         .translation(vector![GROUND_X * PHYSICS_SCALE, GROUND_Y * PHYSICS_SCALE])

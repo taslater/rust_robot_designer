@@ -1,8 +1,5 @@
-use crate::constants::{
-    GROUND_HEIGHT, GROUND_RESTITUTION, GROUND_FRICTION, GROUND_WIDTH, GROUND_X, GROUND_Y, PHYSICS_SCALE,
-};
 use crate::model::robot::Robot;
-use crate::physics_world::{to_rendering_coords, PhysicsWorld};
+use crate::physics_world::{to_rendering_coords, PhysicsWorld, flat_ground_collider};
 use crate::robot_physics_builder::RobotPhysicsBuilder;
 use egui::pos2;
 use rapier2d::prelude::*;
@@ -47,14 +44,7 @@ impl RobotSimulator {
         self.robot_physics_map.joint_id_to_handle = robot_handles.joint_handles;
 
         // Create the ground
-        let ground_collider =
-            ColliderBuilder::cuboid(GROUND_WIDTH * PHYSICS_SCALE, GROUND_HEIGHT * PHYSICS_SCALE)
-                .translation(vector![GROUND_X * PHYSICS_SCALE, GROUND_Y * PHYSICS_SCALE])
-                .restitution(GROUND_RESTITUTION)
-                .friction(GROUND_FRICTION)
-                .collision_groups(InteractionGroups::new(0b0001.into(), 0b1111.into()))
-                .build();
-        let _ = self.physics_world.add_collider(ground_collider);
+        let _ = self.physics_world.add_collider(flat_ground_collider());
     }
 
     fn update(&mut self) {

@@ -1,12 +1,10 @@
-use rapier2d::prelude::*;
-use egui::{pos2, Pos2};
 use crate::constants::{
-    GRAVITY, 
-    // GROUND_RESTITUTION,
-    TARGET_VELOCITY,
-    MOTOR_DAMPING,
-    PHYSICS_SCALE
+    GRAVITY, GROUND_FRICTION, GROUND_RESTITUTION, 
+    GROUND_WIDTH, GROUND_HEIGHT, GROUND_X, GROUND_Y,
+    MOTOR_DAMPING, PHYSICS_SCALE, TARGET_VELOCITY,
 };
+use egui::{pos2, Pos2};
+use rapier2d::prelude::*;
 
 pub fn to_physics_coords(rendering_coords: Pos2) -> Pos2 {
     pos2(
@@ -20,6 +18,22 @@ pub fn to_rendering_coords(physics_coords: Pos2) -> Pos2 {
         physics_coords.x / PHYSICS_SCALE,
         physics_coords.y / PHYSICS_SCALE,
     )
+}
+
+// let ground_collider =
+// ColliderBuilder::cuboid(GROUND_WIDTH * PHYSICS_SCALE, GROUND_HEIGHT * PHYSICS_SCALE)
+//     .translation(vector![GROUND_X * PHYSICS_SCALE, GROUND_Y * PHYSICS_SCALE])
+//     .restitution(GROUND_RESTITUTION)
+//     .friction(GROUND_FRICTION)
+//     .collision_groups(InteractionGroups::new(0b0001.into(), 0b1111.into()))
+//     .build()
+pub fn flat_ground_collider() -> Collider {
+    ColliderBuilder::cuboid(GROUND_WIDTH * PHYSICS_SCALE, GROUND_HEIGHT * PHYSICS_SCALE)
+        .translation(vector![GROUND_X * PHYSICS_SCALE, GROUND_Y * PHYSICS_SCALE])
+        .restitution(GROUND_RESTITUTION)
+        .friction(GROUND_FRICTION)
+        .collision_groups(InteractionGroups::new(0b0001.into(), 0b1111.into()))
+        .build()
 }
 
 pub struct PhysicsWorld {
@@ -133,19 +147,12 @@ impl PhysicsWorld {
         self.rigid_body_set.insert(rigid_body)
     }
 
-    pub fn add_collider_w_parent(
-        &mut self,
-        collider: Collider,
-        body_handle: RigidBodyHandle,
-    ) {
+    pub fn add_collider_w_parent(&mut self, collider: Collider, body_handle: RigidBodyHandle) {
         self.collider_set
             .insert_with_parent(collider, body_handle, &mut self.rigid_body_set);
     }
 
-    pub fn add_collider(
-        &mut self,
-        collider: Collider,
-    ) -> ColliderHandle {
+    pub fn add_collider(&mut self, collider: Collider) -> ColliderHandle {
         self.collider_set.insert(collider)
     }
 

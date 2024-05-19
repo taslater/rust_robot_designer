@@ -11,6 +11,7 @@ mod physics_world;
 mod robot_physics;
 pub mod constants;
 mod robot_trainer;
+pub mod brain;
 
 use robot_trainer::RobotTrainer;
 

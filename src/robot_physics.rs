@@ -9,6 +9,25 @@ use nalgebra::{point, vector};
 use rapier2d::prelude::*;
 use std::collections::HashMap;
 
+struct RobotPhysicsHandles {
+    pub capsule_handles: HashMap<usize, RigidBodyHandle>,
+    pub joint_handles: HashMap<usize, ImpulseJointHandle>,
+}
+
+impl RobotPhysicsHandles {
+    pub fn new() -> Self {
+        RobotPhysicsHandles {
+            capsule_handles: HashMap::new(),
+            joint_handles: HashMap::new(),
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.capsule_handles.clear();
+        self.joint_handles.clear();
+    }
+}
+
 pub struct RobotPhysics {
     handles: RobotPhysicsHandles,
 }
@@ -20,23 +39,19 @@ impl RobotPhysics {
         }
     }
 
-    pub fn build_robot(&mut self, robot: &mut Robot, physics_world: &mut PhysicsWorld) {
-        self.handles = RobotPhysicsBuilder::build_robot(robot, physics_world);
-    }
+    // pub fn build_robot(&mut self, robot: &mut Robot, physics_world: &mut PhysicsWorld) {
+    //     self.handles = RobotPhysicsBuilder::build_robot(robot, physics_world);
+    // }
 
-    pub fn update_robot_physics(&self, robot: &mut Robot, physics_world: &PhysicsWorld) {
-        RobotPhysicsUpdater::update_robot_physics(robot, physics_world, &self.handles);
-    }
+    // pub fn update_robot_physics(&self, robot: &mut Robot, physics_world: &PhysicsWorld) {
+    //     RobotPhysicsUpdater::update_robot_physics(robot, physics_world, &self.handles);
+    // }
 
     pub fn clear(&mut self) {
         self.handles.clear();
     }
-}
 
-struct RobotPhysicsBuilder;
-
-impl RobotPhysicsBuilder {
-    pub fn build_robot(robot: &mut Robot, physics_world: &mut PhysicsWorld) -> RobotPhysicsHandles {
+    pub fn build_robot(&mut self, robot: &mut Robot, physics_world: &mut PhysicsWorld) {
         let mut capsule_handles = HashMap::new();
         let mut joint_handles = HashMap::new();
 
@@ -152,44 +167,21 @@ impl RobotPhysicsBuilder {
                 joint.set_handle(impulse_joint_handle);
             }
         }
-
-        RobotPhysicsHandles {
+        self.handles = RobotPhysicsHandles {
             capsule_handles,
             joint_handles,
         }
     }
-}
 
-struct RobotPhysicsHandles {
-    pub capsule_handles: HashMap<usize, RigidBodyHandle>,
-    pub joint_handles: HashMap<usize, ImpulseJointHandle>,
-}
-
-impl RobotPhysicsHandles {
-    pub fn new() -> Self {
-        RobotPhysicsHandles {
-            capsule_handles: HashMap::new(),
-            joint_handles: HashMap::new(),
-        }
-    }
-
-    pub fn clear(&mut self) {
-        self.capsule_handles.clear();
-        self.joint_handles.clear();
-    }
-}
-
-struct RobotPhysicsUpdater;
-
-impl RobotPhysicsUpdater {
     pub fn update_robot_physics(
+        &self,
         robot: &mut Robot,
         physics_world: &PhysicsWorld,
-        robot_handles: &RobotPhysicsHandles,
+        // robot_handles: &RobotPhysicsHandles,
     ) {
         // Update the robot's capsule positions and rotations
         for capsule in robot.get_capsules_mut() {
-            if let Some(body_handle) = robot_handles.capsule_handles.get(&capsule.id) {
+            if let Some(body_handle) = self.handles.capsule_handles.get(&capsule.id) {
                 if let Some(body) = physics_world.get_rigid_body(*body_handle) {
                     let physics_position = body.position().translation;
                     let rotation =
@@ -204,7 +196,7 @@ impl RobotPhysicsUpdater {
 
         // Update the robot's joint positions
         for joint in robot.get_joints_mut() {
-            if let Some(impulse_joint_handle) = robot_handles.joint_handles.get(&joint.id) {
+            if let Some(impulse_joint_handle) = self.handles.joint_handles.get(&joint.id) {
                 if let Some(impulse_joint) = physics_world.get_impulse_joint(*impulse_joint_handle)
                 {
                     let body1_pos = physics_world

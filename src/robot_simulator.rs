@@ -53,12 +53,6 @@ impl RobotSimulator {
             .update_joint_motor_directions(motor_directions, &mut self.physics_world);
         self.physics_world.step();
 
-        // Update the robot's capsule positions based on the simulation
-        // RobotPhysicsUpdater::update_robot_physics(
-        //     &mut self.robot,
-        //     &self.physics_world,
-        //     &self.robot_physics,
-        // );
         self.robot_physics.update_robot_physics(&mut self.robot, &self.physics_world);
     }
 

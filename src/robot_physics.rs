@@ -169,7 +169,6 @@ impl RobotPhysics {
         &self,
         robot: &mut Robot,
         physics_world: &PhysicsWorld,
-        // robot_handles: &RobotPhysicsHandles,
     ) {
         // Update the robot's capsule positions and rotations
         for capsule in robot.get_capsules_mut() {

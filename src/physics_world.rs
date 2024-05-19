@@ -1,10 +1,10 @@
 use crate::constants::{
-    GRAVITY, GROUND_FRICTION, GROUND_RESTITUTION, 
-    GROUND_WIDTH, GROUND_HEIGHT, GROUND_X, GROUND_Y,
+    GRAVITY, GROUND_FRICTION, GROUND_HEIGHT, GROUND_RESTITUTION, GROUND_WIDTH, GROUND_X, GROUND_Y,
     MOTOR_DAMPING, PHYSICS_SCALE, TARGET_VELOCITY,
 };
 use egui::{pos2, Pos2};
 use rapier2d::prelude::*;
+use std::collections::HashMap;
 
 pub fn to_physics_coords(rendering_coords: Pos2) -> Pos2 {
     pos2(
@@ -27,6 +27,15 @@ pub fn flat_ground_collider() -> Collider {
         .friction(GROUND_FRICTION)
         .collision_groups(InteractionGroups::new(0b0001.into(), 0b1111.into()))
         .build()
+}
+
+pub struct RigidBodyObservation {
+    pub y: f32,
+    pub sin: f32,
+    pub cos: f32,
+    pub vel_x: f32,
+    pub vel_y: f32,
+    pub angvel: f32,
 }
 
 pub struct PhysicsWorld {
@@ -209,5 +218,42 @@ impl PhysicsWorld {
             &(),
             &self.event_handler,
         );
+    }
+
+    pub fn get_all_rigid_body_positions_velocities_angles(
+        &self,
+    ) -> HashMap<RigidBodyHandle, RigidBodyObservation> {
+        self.rigid_body_set
+            .iter()
+            .map(|(rigid_body_handle, rigid_body)| {
+                let pos: &nalgebra::Isometry<f32, nalgebra::Unit<nalgebra::Complex<f32>>, 2> =
+                    rigid_body.position();
+                let translation = pos.translation.vector;
+                let trans_y: f32 = translation[1];
+                let rotation: nalgebra::Unit<nalgebra::Complex<f32>> = pos.rotation;
+                let sin: f32 = rotation.im;
+                let cos: f32 = rotation.re;
+                let linvel: &nalgebra::Matrix<
+                    f32,
+                    nalgebra::Const<2>,
+                    nalgebra::Const<1>,
+                    nalgebra::ArrayStorage<f32, 2, 1>,
+                > = rigid_body.linvel();
+                let vel_x: f32 = linvel[(0, 0)];
+                let vel_y: f32 = linvel[(1, 0)];
+                let angvel: f32 = rigid_body.angvel();
+                (
+                    rigid_body_handle,
+                    RigidBodyObservation {
+                        y: trans_y,
+                        sin,
+                        cos,
+                        vel_x,
+                        vel_y,
+                        angvel,
+                    },
+                )
+            })
+            .collect()
     }
 }

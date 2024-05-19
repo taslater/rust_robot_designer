@@ -66,6 +66,10 @@ impl Robot {
         &mut self.joints
     }
 
+    pub fn joints_count(&self) -> usize {
+        self.joints.len()
+    }
+
     // pub fn capsule_center(&self, capsule_id: usize) -> Option<Pos2> {
     //     self.capsules
     //         .iter()

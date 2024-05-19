@@ -39,14 +39,6 @@ impl RobotPhysics {
         }
     }
 
-    // pub fn build_robot(&mut self, robot: &mut Robot, physics_world: &mut PhysicsWorld) {
-    //     self.handles = RobotPhysicsBuilder::build_robot(robot, physics_world);
-    // }
-
-    // pub fn update_robot_physics(&self, robot: &mut Robot, physics_world: &PhysicsWorld) {
-    //     RobotPhysicsUpdater::update_robot_physics(robot, physics_world, &self.handles);
-    // }
-
     pub fn clear(&mut self) {
         self.handles.clear();
     }

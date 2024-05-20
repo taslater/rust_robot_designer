@@ -300,7 +300,7 @@ impl Robot {
             .retain(|joint| !joint.is_inside(pointer_pos.x, pointer_pos.y));
     }
 
-    fn find_items_by_point<T>(&self, items: &[T], pointer_pos: Pos2) -> Vec<usize>
+    fn find_items_by_point<T>(&self, items: &[T], pointer_pos: Pos2) -> HashSet<usize>
     where
         T: HasPosition,
     {
@@ -316,7 +316,7 @@ impl Robot {
         self.find_capsule_points_at_position_internal(pointer_pos)
     }
 
-    pub fn find_joints_by_point(&self, pointer_pos: Pos2) -> Vec<usize> {
+    pub fn find_joints_by_point(&self, pointer_pos: Pos2) -> HashSet<usize> {
         self.find_items_by_point(&self.joints, pointer_pos)
     }
 
@@ -353,7 +353,7 @@ impl Robot {
         painter: &egui::Painter,
         selected_capsule_points: &Vec<CapsulePointId>,
         hovered_capsule_points: &Vec<CapsulePointId>,
-        selected_joints: &Vec<usize>,
+        selected_joints: &HashSet<usize>,
         hovered_joints: &Vec<usize>,
     ) {
         for capsule in self.capsules.iter() {
@@ -425,7 +425,7 @@ impl Robot {
     fn get_joint_color(
         &self,
         joint_index: usize,
-        selected_joints: &Vec<usize>,
+        selected_joints: &HashSet<usize>,
         hovered_joints: &Vec<usize>,
     ) -> Color32 {
         if selected_joints.contains(&joint_index) {

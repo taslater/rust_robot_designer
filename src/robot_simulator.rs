@@ -1,6 +1,7 @@
 use crate::model::robot::Robot;
 use crate::physics_world::{flat_ground_collider, PhysicsWorld};
 use crate::robot_physics::RobotPhysics;
+use std::collections::HashSet;
 
 const STEP_COUNT: usize = 500; // Number of steps before flipping direction
 
@@ -84,7 +85,7 @@ impl RobotSimulator {
                 ui.painter(),
                 &Vec::new(),
                 &Vec::new(),
-                &Vec::new(),
+                &HashSet::new(),
                 &Vec::new(),
             );
             ui.ctx().request_repaint();

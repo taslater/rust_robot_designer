@@ -8,7 +8,7 @@ use eframe::egui;
 use egui::{Color32, Pos2, Stroke};
 
 pub struct JointEditor {
-    selected_joints: Vec<usize>,
+    selected_joints: HashSet<usize>,
     selected_capsules: HashSet<usize>,
     joint_creation_state: JointCreationState,
 }
@@ -16,7 +16,7 @@ pub struct JointEditor {
 impl JointEditor {
     pub fn new() -> Self {
         JointEditor {
-            selected_joints: Vec::new(),
+            selected_joints: HashSet::new(),
             selected_capsules: HashSet::new(),
             joint_creation_state: JointCreationState::SelectFirstCapsule,
         }

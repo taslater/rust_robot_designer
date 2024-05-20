@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use rapier2d::dynamics::RigidBodyHandle;
 
@@ -251,7 +251,7 @@ impl RobotTrainer {
                     ui.painter(),
                     &Vec::new(),
                     &Vec::new(),
-                    &Vec::new(),
+                    &HashSet::new(),
                     &Vec::new(),
                 );
             }

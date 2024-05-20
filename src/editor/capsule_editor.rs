@@ -229,7 +229,7 @@ impl CapsuleEditor {
         let hovered_capsule_points: Vec<CapsulePointId> =
             robot.find_hovered_capsule_points(pointer_pos).clone();
 
-        let selected_joints = vec![];
+        let selected_joints: HashSet<usize> = HashSet::new();
         let hovered_joints = vec![];
 
         robot.draw(

@@ -17,7 +17,7 @@ pub const GROUND_Y: f32 = 400.0 + GROUND_HEIGHT / 2.0;
 
 
 pub const POPULATION_SIZE: usize = 150;
-pub const STEPS_PER_GENERATION: usize = 2000;
+pub const STEPS_PER_GENERATION: usize = 100;
 pub const BEST_RATIO: f32 = 0.1;
 pub const MUTATION_RATE: f64 = 0.05;
 pub const MUTATION_AMOUNT: f64 = 0.3;

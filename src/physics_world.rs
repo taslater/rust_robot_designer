@@ -180,18 +180,6 @@ impl PhysicsWorld {
         self.impulse_joint_set.get(handle)
     }
 
-    // pub fn update_impulse_joints(&mut self, motor_directions: &[f32]) {
-    //     for (index, (_joint_handle, impulse_joint)) in self.impulse_joint_set.iter_mut().enumerate() {
-    //         if let Some(motor_direction) = motor_directions.get(index) {
-    //             impulse_joint.data.set_motor_velocity(
-    //                 JointAxis::AngX,
-    //                 TARGET_VELOCITY * motor_direction,
-    //                 MOTOR_DAMPING,
-    //             );
-    //         }
-    //     }
-    // }
-
     pub fn set_impulse_joint_motor_direction(
         &mut self,
         impulse_joint_handle: ImpulseJointHandle,

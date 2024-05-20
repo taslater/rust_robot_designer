@@ -123,74 +123,22 @@ impl Sequential {
     pub fn get_flat_weights_and_biases(&self) -> Vec<f64> {
         self.layers
             .iter()
-            .map(|layer| {
-                if let Some(dense_layer) = layer.as_any().downcast_ref::<DenseLayer>() {
-                    dense_layer.get_flat_weights_and_biases()
-                } else {
-                    Vec::new()
-                }
-            })
+            .map(|dense_layer| dense_layer.get_flat_weights_and_biases())
             .flatten()
             .collect()
     }
 
     pub fn set_weights_and_biases(&mut self, flat: Vec<f64>) {
         let mut flat_index = 0;
-        for layer in &mut self.layers {
-            if let Some(dense_layer) = layer.as_any_mut().downcast_mut::<DenseLayer>() {
-                let layer_size = dense_layer.weights.nrows() * dense_layer.weights.ncols()
-                    + dense_layer.bias.nrows();
-                dense_layer
-                    .set_weights_and_biases(flat[flat_index..flat_index + layer_size].to_vec());
-                flat_index += layer_size;
-            }
+        for dense_layer in &mut self.layers {
+            let layer_size = dense_layer.weights.nrows() * dense_layer.weights.ncols()
+                + dense_layer.bias.nrows();
+            dense_layer
+                .set_weights_and_biases(flat[flat_index..flat_index + layer_size].to_vec());
+            flat_index += layer_size;
         }
     }
 
-    pub fn mutate(&mut self, mutation_rate: f64, mutation_amount: f64) {
-        let mut rng = thread_rng();
-        for dense_layer in &mut self.layers {
-            let weights: &mut nalgebra::Matrix<
-                f64,
-                nalgebra::Dyn,
-                nalgebra::Dyn,
-                nalgebra::VecStorage<f64, nalgebra::Dyn, nalgebra::Dyn>,
-            > = &mut dense_layer.weights.clone();
-            // get the mean and standard deviation of the weights
-            let mut meansd = MeanSD::default();
-            for i in 0..weights.nrows() {
-                for j in 0..weights.ncols() {
-                    meansd.update(weights[(i, j)]);
-                }
-            }
-            let mean: f64 = meansd.mean();
-            // let sd: f64 = meansd.sstdev();
-            let normal: Normal<f64> = Normal::new(mean * mutation_amount, 0.0).unwrap();
-            // mutate the weights
-            dense_layer.weights = dense_layer.weights.map(|v| {
-                if rng.gen_bool(mutation_rate) {
-                    v + normal.sample(&mut rng)
-                } else {
-                    v
-                }
-            });
-            // mutate the biases
-            let bias: &mut nalgebra::Matrix<f64, nalgebra::Dyn, nalgebra::Dyn, nalgebra::VecStorage<f64, nalgebra::Dyn, nalgebra::Dyn>> = &mut dense_layer.bias.clone();
-            let mut meansd = MeanSD::default();
-            for i in 0..bias.nrows() {
-                meansd.update(bias[(i, 0)]);
-            }
-            let mean: f64 = meansd.mean();
-            let normal: Normal<f64> = Normal::new(mean * mutation_amount, 0.0).unwrap();
-            dense_layer.bias = dense_layer.bias.map(|v| {
-                if rng.gen_bool(mutation_rate) {
-                    v + normal.sample(&mut rng)
-                } else {
-                    v
-                }
-            });
-        }
-    }
 }
 
 // Activation functions

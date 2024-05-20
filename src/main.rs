@@ -12,6 +12,7 @@ mod robot_physics;
 pub mod constants;
 mod robot_trainer;
 pub mod brain;
+pub mod cma_es;
 
 use robot_trainer::RobotTrainer;
 

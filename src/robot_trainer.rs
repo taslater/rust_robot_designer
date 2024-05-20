@@ -3,12 +3,13 @@ use std::collections::{HashMap, HashSet};
 use rapier2d::dynamics::RigidBodyHandle;
 
 use crate::brain::{get_brain, Sequential};
+use crate::cma_es::CMAES;
 use crate::model::robot::Robot;
 use crate::physics_world::{flat_ground_collider, PhysicsWorld, RigidBodyObservation};
 use crate::robot_physics::RobotPhysics;
+use nalgebra::DVector;
 
-// const POPULATION_SIZE: usize = 10;
-use crate::constants::{BEST_RATIO, MUTATION_AMOUNT, MUTATION_RATE, POPULATION_SIZE, STEPS_PER_GENERATION};
+use crate::constants::STEPS_PER_GENERATION;
 
 fn get_observations(
     physics_observations: &HashMap<RigidBodyHandle, RigidBodyObservation>,
@@ -55,17 +56,28 @@ pub struct RobotTrainer {
     brains: Vec<Sequential>,
     is_playing: bool,
     generation_step: usize,
+    optimizer: Option<CMAES>,
+    population: Vec<
+        nalgebra::Matrix<
+            f64,
+            nalgebra::Dyn,
+            nalgebra::Const<1>,
+            nalgebra::VecStorage<f64, nalgebra::Dyn, nalgebra::Const<1>>,
+        >,
+    >,
 }
 
 impl RobotTrainer {
     pub fn new() -> Self {
         RobotTrainer {
             physics_world: PhysicsWorld::new(),
-            robots: Vec::with_capacity(POPULATION_SIZE),
-            robots_physics: Vec::with_capacity(POPULATION_SIZE),
-            brains: Vec::with_capacity(POPULATION_SIZE),
+            robots: Vec::new(),
+            robots_physics: Vec::new(),
+            brains: Vec::new(),
             is_playing: false,
             generation_step: 0,
+            optimizer: None,
+            population: Vec::new(),
         }
     }
 
@@ -82,50 +94,63 @@ impl RobotTrainer {
     }
 
     pub fn init_physics(&mut self, robot: &Robot) {
+        println!("Initializing physics");
         self.clear();
 
-        let mut robots: Vec<Robot> = Vec::with_capacity(POPULATION_SIZE);
-        let mut robots_physics: Vec<RobotPhysics> = Vec::with_capacity(POPULATION_SIZE);
+        let mut test_robot = robot.clone();
+        let mut test_robot_physics = RobotPhysics::new();
+        test_robot_physics.build_robot(&mut test_robot, &mut self.physics_world);
 
-        for _ in 0..POPULATION_SIZE {
-            let mut robot = robot.clone();
-            let mut robot_physics = RobotPhysics::new();
-            robot_physics.build_robot(&mut robot, &mut self.physics_world);
-            robots.push(robot);
-            robots_physics.push(robot_physics);
-        }
-
-        let n_outputs: usize = robot.joints_count();
+        let n_outputs: usize = test_robot.joints_count();
         let all_positions_velocities_angles: std::collections::HashMap<
             RigidBodyHandle,
             RigidBodyObservation,
         > = self.physics_world.get_all_rigid_body_observations();
         let observations = get_observations(
             &all_positions_velocities_angles,
-            &robots_physics[0].get_capsule_handles(),
+            &test_robot_physics.get_capsule_handles(),
         );
         let n_inputs: usize = observations.len();
+        println!("n_inputs: {}", n_inputs);
+        println!("n_outputs: {}", n_outputs);
 
-        for _ in 0..POPULATION_SIZE {
-            self.brains.push(get_brain(
-                n_inputs,
-                vec![2 * n_inputs, 2 * n_inputs],
-                n_outputs,
-            ));
+        let test_brain = get_brain(n_inputs, vec![2 * n_inputs, 2 * n_inputs], n_outputs);
+        let test_flat: Vec<f64> = test_brain.get_flat_weights_and_biases();
+        println!("n_weights_and_biases: {}", test_flat.len());
+
+        let mean = DVector::from_element(test_flat.len(), 0.0);
+        let sigma = 1.0;
+
+        let mut optimizer = CMAES::new(mean, sigma);
+        self.population = optimizer.ask();
+
+        let pop_size: usize = self.population.len();
+        println!("pop_size: {}", pop_size);
+
+        self.clear();
+
+        for brain_stuff in self.population.clone() {
+            let mut brain = test_brain.clone();
+            brain.set_weights_and_biases(brain_stuff.iter().map(|&v| v as f64).collect());
+            let mut robot = robot.clone();
+            let mut robot_physics = RobotPhysics::new();
+            robot_physics.build_robot(&mut robot, &mut self.physics_world);
+            self.robots.push(robot);
+            self.robots_physics.push(robot_physics);
+            self.brains.push(brain);
         }
 
-        self.robots = robots;
-        self.robots_physics = robots_physics;
-
         let _ = self.physics_world.add_collider(flat_ground_collider());
+        self.optimizer = Some(optimizer);
     }
 
     pub fn evaluate_and_update(&mut self) {
         let all_rigid_body_evaluations: HashMap<RigidBodyHandle, f32> =
-            self.physics_world.get_all_rigid_body_evaluations();
+            self.physics_world.get_all_rigid_body_evaluations();          
 
-        let mut fitnesses: Vec<f32> = Vec::with_capacity(POPULATION_SIZE);
-        for i in 0..POPULATION_SIZE {
+        let mut fitnesses: Vec<f32> = Vec::with_capacity(self.brains.len());
+        // let mut fitnesses: [f32] = [0.0; self.brains.len()];
+        for i in 0..self.brains.len() {
             let robot_physics = &self.robots_physics[i];
             let evaluations = get_evaluations(
                 &all_rigid_body_evaluations,
@@ -133,39 +158,26 @@ impl RobotTrainer {
             );
             // take the mean of the evaluations
             let evaluation: f32 = evaluations.iter().sum::<f32>() / evaluations.len() as f32;
+            // fitnesses[i] = evaluation;
             fitnesses.push(evaluation);
         }
-        // // clone of fitnesses sorted for print
-        // let mut sorted_fitnesses = fitnesses.clone();
-        // sorted_fitnesses.sort_by(|a, b| b.partial_cmp(a).unwrap());
-        // println!("Fitnesses: {:?}", sorted_fitnesses);
 
-        // use BEST_RATIO to get the N best brains
-        let n_best: usize = (BEST_RATIO * POPULATION_SIZE as f32) as usize;
-        let mut best_flat_weights_and_biases: Vec<Vec<f64>> = Vec::with_capacity(n_best);
-        let mut best_indices: Vec<usize> = (0..fitnesses.len()).collect();
-        // sort from largest to smallest
-        best_indices.sort_by(|&i, &j| fitnesses[i].partial_cmp(&fitnesses[j]).unwrap());
+        // convert fitnesses to &[f64]
+        let fitnesses: Vec<f64> = fitnesses.iter().map(|&v| v as f64).collect();
 
-        print!("Best fitnesses: ");
-        for _ in 0..n_best {
-            let i = best_indices.pop().unwrap();
-            print!("{}, ", fitnesses[i]);
-            best_flat_weights_and_biases.push(self.brains[i].get_flat_weights_and_biases());
-        }
-        println!();
+        let optimizer = self.optimizer.as_mut().unwrap();
+        optimizer.tell(&self.population, &fitnesses);
 
-        // mutate the best brains
-        for i in 0..POPULATION_SIZE {
-            let mut new_brain = self.brains[i].clone();
-            let best_brain = &best_flat_weights_and_biases[i % n_best];
-            new_brain.set_weights_and_biases(best_brain.clone());
-            new_brain.mutate(MUTATION_RATE, MUTATION_AMOUNT);
-            self.brains[i] = new_brain;
+        self.population = optimizer.ask();
+
+        // update the brains
+        for (i, brain_stuff) in self.population.iter().enumerate() {
+            let brain = &mut self.brains[i];
+            brain.set_weights_and_biases(brain_stuff.iter().map(|&v| v as f64).collect());
         }
 
         // reset the robots
-        for i in 0..POPULATION_SIZE {
+        for i in 0..self.brains.len() {
             let robot_physics = &mut self.robots_physics[i];
             robot_physics.reset_robot(&mut self.physics_world);
         }
@@ -175,6 +187,8 @@ impl RobotTrainer {
         if !self.is_playing {
             return;
         }
+
+        println!("Step: {}", self.generation_step);
 
         let all_positions_velocities_angles: std::collections::HashMap<
             RigidBodyHandle,

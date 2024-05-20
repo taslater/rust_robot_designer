@@ -7,6 +7,7 @@ use crate::model::joint::Joint;
 use crate::{editor::capsule_editor::OverlappingCapsules, physics_world};
 use eframe::egui;
 use egui::{Color32, Pos2};
+use std::collections::HashSet;
 
 // use rand::Rng;
 
@@ -261,13 +262,19 @@ impl Robot {
         overlapping_capsules
     }
 
-    pub fn check_joint_placement(&self, pointer_pos: Pos2, selected_capsules: &[usize]) -> bool {
+    pub fn check_joint_placement(
+        &self,
+        pointer_pos: Pos2,
+        selected_capsules: &HashSet<usize>,
+    ) -> bool {
         if let Some(capsule1) = selected_capsules
-            .get(0)
+            .iter()
+            .next()
             .and_then(|&id| self.capsules.iter().find(|c| c.id == id))
         {
             if let Some(capsule2) = selected_capsules
-                .get(1)
+                .iter()
+                .nth(1)
                 .and_then(|&id| self.capsules.iter().find(|c| c.id == id))
             {
                 return capsule1.is_inside_at_all(pointer_pos.x, pointer_pos.y)

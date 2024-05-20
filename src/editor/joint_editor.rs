@@ -9,7 +9,7 @@ use egui::{Color32, Pos2, Stroke};
 
 pub struct JointEditor {
     selected_joints: Vec<usize>,
-    selected_capsules: Vec<usize>,
+    selected_capsules: HashSet<usize>,
     joint_creation_state: JointCreationState,
 }
 
@@ -17,7 +17,7 @@ impl JointEditor {
     pub fn new() -> Self {
         JointEditor {
             selected_joints: Vec::new(),
-            selected_capsules: Vec::new(),
+            selected_capsules: HashSet::new(),
             joint_creation_state: JointCreationState::SelectFirstCapsule,
         }
     }
@@ -108,8 +108,8 @@ impl JointEditor {
                 id: robot.get_joint_count(),
                 x: pointer_pos.x,
                 y: pointer_pos.y,
-                capsule1_id: self.selected_capsules[0],
-                capsule2_id: self.selected_capsules[1],
+                capsule1_id: *self.selected_capsules.iter().next().unwrap(),
+                capsule2_id: *self.selected_capsules.iter().nth(1).unwrap(),
                 min: -0.5,
                 max: 0.5,
                 impulse_joint_handle: None,
@@ -163,14 +163,18 @@ impl JointEditor {
         if let Some(capsule_id) = clicked_capsule {
             if self.selected_capsules.contains(&capsule_id) {
                 // Deselect the capsule if it's already selected
-                self.selected_capsules.retain(|&id| id != capsule_id);
+                // self.selected_capsules.retain(|&id| id != capsule_id);
+                self.selected_capsules.remove(&capsule_id);
             } else if (self.selected_capsules.len() == 1)
-                && (robot.are_capsules_already_joined(self.selected_capsules[0], capsule_id))
+                // && (robot.are_capsules_already_joined(self.selected_capsules[0], capsule_id))
+                && (robot.are_capsules_already_joined(*self.selected_capsules.iter().next().unwrap(), capsule_id))
+
             {
                 println!("The capsules are already joined.");
                 return;
             } else if self.selected_capsules.len() < max_selections {
-                self.selected_capsules.push(capsule_id);
+                // self.selected_capsules.push(capsule_id);
+                self.selected_capsules.insert(capsule_id);
             }
 
             if self.selected_capsules.len() == max_selections {

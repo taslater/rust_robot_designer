@@ -45,9 +45,9 @@ impl RobotPhysics {
         &self.handles.capsule_handles
     }
 
-    pub fn get_impulse_joint(&self, joint_id: usize) -> Option<&ImpulseJointHandle> {
-        self.handles.joint_handles.get(&joint_id)
-    }
+    // pub fn get_impulse_joint(&self, joint_id: usize) -> Option<&ImpulseJointHandle> {
+    //     self.handles.joint_handles.get(&joint_id)
+    // }
 
     pub fn get_impulse_joint_handle(&self, joint_id: usize) -> ImpulseJointHandle {
         self.handles.joint_handles.get(&joint_id).unwrap().clone()

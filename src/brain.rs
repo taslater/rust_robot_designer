@@ -194,9 +194,9 @@ impl Sequential {
 }
 
 // Activation functions
-fn relu(x: DMatrix<f64>) -> DMatrix<f64> {
-    x.map(|v| v.max(0.0))
-}
+// fn relu(x: DMatrix<f64>) -> DMatrix<f64> {
+//     x.map(|v| v.max(0.0))
+// }
 
 fn leaky_relu(x: DMatrix<f64>) -> DMatrix<f64> {
     x.map(|v| v.max(0.1 * v))
@@ -207,7 +207,6 @@ fn sigmoid(x: DMatrix<f64>) -> DMatrix<f64> {
 }
 
 pub(crate) fn get_brain(in_size: usize, hidden_sizes: Vec<usize>, out_size: usize) -> Sequential {
-    // let mut layers: Vec<Box<dyn Layer>> = Vec::new();
     let mut layers: Vec<DenseLayer> = Vec::new();
     let mut prev_size = in_size;
     let normal_relu: Normal<f64> = Normal::new(0.0, 2.0).unwrap();
@@ -216,7 +215,6 @@ pub(crate) fn get_brain(in_size: usize, hidden_sizes: Vec<usize>, out_size: usiz
         layers.push(DenseLayer::new(prev_size, size, leaky_relu, normal_relu));
         prev_size = size;
     }
-    // layers.push(Box::new(DenseLayer::new(
     layers.push(DenseLayer::new(
         prev_size,
         out_size,

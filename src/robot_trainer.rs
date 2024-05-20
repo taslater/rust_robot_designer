@@ -200,9 +200,9 @@ impl RobotTrainer {
             > = self.brains[i].forward(&observations);
             // convert outputs_mat to Vec<f32>
             let outputs: Vec<f32> = outputs_mat.iter().map(|&v| v as f32).collect();
-            for (joint_id, output) in robot.get_joints().iter().zip(outputs) {
+            for ((joint_id, _joint), output) in robot.get_joints().iter().zip(outputs) {
                 self.physics_world.set_impulse_joint_motor_direction(
-                    robot_physics.get_impulse_joint_handle(joint_id.id),
+                    robot_physics.get_impulse_joint_handle(*joint_id),
                     output,
                 );
             }

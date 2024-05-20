@@ -7,7 +7,7 @@ use crate::model::joint::Joint;
 use crate::{editor::capsule_editor::OverlappingCapsules, physics_world};
 use eframe::egui;
 use egui::{Color32, Pos2};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 // use rand::Rng;
 
@@ -21,47 +21,31 @@ fn generate_capsule_id() -> usize {
 
 #[derive(Debug, Clone)]
 pub struct Robot {
-    capsules: Vec<Capsule>,
-    joints: Vec<Joint>,
+    capsules: HashMap<usize, Capsule>,
+    joints: HashMap<usize, Joint>,
 }
 
 impl Robot {
     pub fn new() -> Self {
         Robot {
-            capsules: Vec::new(),
-            joints: Vec::new(),
+            capsules: HashMap::new(),
+            joints: HashMap::new(),
         }
     }
 
-    pub fn get_capsules(&self) -> &Vec<Capsule> {
+    pub fn get_capsules(&self) -> &HashMap<usize, Capsule> {
         &self.capsules
     }
 
-    // pub fn get_capsule(&self, capsule_id: usize) -> Option<&Capsule> {
-    //     self.capsules.get(capsule_id)
-    // }
-
-    pub fn get_capsules_mut(&mut self) -> &mut Vec<Capsule> {
+    pub fn get_capsules_mut(&mut self) -> &mut HashMap<usize, Capsule> {
         &mut self.capsules
     }
 
-    // pub fn get_capsule_mut(&mut self, capsule_id: usize) -> Option<&mut Capsule> {
-    //     self.capsules.get_mut(capsule_id)
-    // }
-
-    pub fn get_joints(&self) -> &Vec<Joint> {
+    pub fn get_joints(&self) -> &HashMap<usize, Joint> {
         &self.joints
     }
 
-    // pub fn get_joint(&self, joint_id: usize) -> Option<&Joint> {
-    //     self.joints.get(joint_id)
-    // }
-
-    // pub fn get_joint_mut(&mut self, joint_id: usize) -> Option<&mut Joint> {
-    //     self.joints.get_mut(joint_id)
-    // }
-
-    pub fn get_joints_mut(&mut self) -> &mut Vec<Joint> {
+    pub fn get_joints_mut(&mut self) -> &mut HashMap<usize, Joint> {
         &mut self.joints
     }
 
@@ -69,28 +53,9 @@ impl Robot {
         self.joints.len()
     }
 
-    // pub fn capsule_center(&self, capsule_id: usize) -> Option<Pos2> {
-    //     self.capsules
-    //         .iter()
-    //         .find(|capsule| capsule.id == capsule_id)
-    //         .map(|capsule| capsule.center())
-    // }
-
-    // pub fn update_motors(&mut self, physics_world: &mut physics_world::PhysicsWorld) {
-    //     let mut rng = rand::thread_rng();
-    //     let motor_directions: Vec<f32> = self
-    //         .joints
-    //         .iter()
-    //         .map(|_| rng.gen_range(-1.0..=1.0))
-    //         .collect();
-
-    //     self.update_joint_motor_directions(&motor_directions, physics_world);
-    // }
-
     pub fn add_capsule(&mut self, start_point: Pos2, end_point: Pos2, radius: f32) {
         let capsule_id = generate_capsule_id();
         let capsule = Capsule::new(
-            capsule_id,
             radius,
             CapsulePoint {
                 capsule_point_id: CapsulePointId {
@@ -109,20 +74,16 @@ impl Robot {
                 y: end_point.y,
             },
         );
-        self.capsules.push(capsule);
+        self.capsules.insert(capsule_id, capsule);
     }
 
     pub fn remove_capsules_by_point(&mut self, x: f32, y: f32) {
         self.capsules
-            .retain(|capsule| !capsule.is_inside_at_all(x, y));
+            .retain(|_, capsule| !capsule.is_inside_at_all(x, y));
     }
 
     pub fn update_capsule_point_pos(&mut self, capsule_point_id: CapsulePointId, x: f32, y: f32) {
-        if let Some(capsule) = self
-            .capsules
-            .iter_mut()
-            .find(|c| c.id == capsule_point_id.capsule_id)
-        {
+        if let Some(capsule) = self.capsules.get_mut(&capsule_point_id.capsule_id) {
             match capsule_point_id.point_type {
                 PointType::Pt1 => {
                     capsule.point1.x = x;
@@ -141,17 +102,13 @@ impl Robot {
     }
 
     pub fn update_capsule_radius(&mut self, capsule_id: usize, radius: f32) {
-        if let Some(capsule) = self.capsules.get_mut(capsule_id) {
+        if let Some(capsule) = self.capsules.get_mut(&capsule_id) {
             capsule.radius = radius;
         }
     }
 
     pub fn get_capsule_point_pos(&self, capsule_point_id: CapsulePointId) -> Option<Pos2> {
-        if let Some(capsule) = self
-            .capsules
-            .iter()
-            .find(|c| c.id == capsule_point_id.capsule_id)
-        {
+        if let Some(capsule) = self.capsules.get(&capsule_point_id.capsule_id) {
             match capsule_point_id.point_type {
                 PointType::Pt1 => Some(Pos2::new(capsule.point1.x, capsule.point1.y)),
                 PointType::Pt2 => Some(Pos2::new(capsule.point2.x, capsule.point2.y)),
@@ -162,9 +119,10 @@ impl Robot {
     }
 
     pub fn has_overlapping_capsules(&self) -> bool {
-        self.capsules.windows(2).any(|window| {
-            let capsule1 = &window[0];
-            let capsule2 = &window[1];
+        let capsules_vec: Vec<&Capsule> = self.capsules.values().collect();
+        capsules_vec.windows(2).any(|window| {
+            let capsule1 = window[0];
+            let capsule2 = window[1];
             capsule1.intersects_capsule(capsule2)
         })
     }
@@ -172,25 +130,25 @@ impl Robot {
     fn find_capsule_points_at_position_internal(&self, pointer_pos: Pos2) -> Vec<CapsulePointId> {
         self.capsules
             .iter()
-            .flat_map(|capsule| {
+            .flat_map(|(&capsule_id, capsule)| {
                 let inside_detail = capsule.is_inside_detail(pointer_pos.x, pointer_pos.y);
                 match inside_detail {
                     PointInsideCapsule::InsideEndcap1 => vec![CapsulePointId {
-                        capsule_id: capsule.id,
+                        capsule_id,
                         point_type: PointType::Pt1,
                     }],
                     PointInsideCapsule::InsideEndcap2 => vec![CapsulePointId {
-                        capsule_id: capsule.id,
+                        capsule_id,
                         point_type: PointType::Pt2,
                     }],
                     PointInsideCapsule::InsideBody => {
                         vec![
                             CapsulePointId {
-                                capsule_id: capsule.id,
+                                capsule_id,
                                 point_type: PointType::Pt1,
                             },
                             CapsulePointId {
-                                capsule_id: capsule.id,
+                                capsule_id,
                                 point_type: PointType::Pt2,
                             },
                         ]
@@ -209,24 +167,24 @@ impl Robot {
                      capsule_id,
                      point_type,
                  }| {
-                    // self.get_capsule(*capsule_id).and_then(|capsule| {
-                    self.capsules
-                        .iter()
-                        .filter(|c| c.id == *capsule_id)
-                        .find_map(|capsule| {
-                            let point = match point_type {
-                                PointType::Pt1 => &capsule.point1,
-                                PointType::Pt2 => &capsule.point2,
-                            };
-                            Some(CapsulePoint {
-                                capsule_point_id: CapsulePointId {
-                                    capsule_id: *capsule_id,
-                                    point_type: *point_type,
-                                },
-                                x: point.x,
-                                y: point.y,
-                            })
+                    // self.capsules
+                    //     .get(capsule_id)
+                    if let Some(capsule) = self.capsules.get(capsule_id) {
+                        let point = match point_type {
+                            PointType::Pt1 => &capsule.point1,
+                            PointType::Pt2 => &capsule.point2,
+                        };
+                        Some(CapsulePoint {
+                            capsule_point_id: CapsulePointId {
+                                capsule_id: *capsule_id,
+                                point_type: *point_type,
+                            },
+                            x: point.x,
+                            y: point.y,
                         })
+                    } else {
+                        None
+                    }
                 },
             )
             .collect()
@@ -249,12 +207,12 @@ impl Robot {
 
     pub fn get_overlapping_capsules(&self) -> Vec<OverlappingCapsules> {
         let mut overlapping_capsules: Vec<OverlappingCapsules> = Vec::new();
-        for (i, capsule1) in self.capsules.iter().enumerate() {
-            for (j, capsule2) in self.capsules.iter().enumerate() {
-                if i < j && capsule1.intersects_capsule(capsule2) {
+        for (capsule1_id, capsule1) in self.capsules.iter() {
+            for (capsule2_id, capsule2) in self.capsules.iter() {
+                if capsule1_id < capsule2_id && capsule1.intersects_capsule(capsule2) {
                     overlapping_capsules.push(OverlappingCapsules {
-                        capsule1_id: i,
-                        capsule2_id: j,
+                        capsule1_id: *capsule1_id,
+                        capsule2_id: *capsule2_id,
                     });
                 }
             }
@@ -270,12 +228,12 @@ impl Robot {
         if let Some(capsule1) = selected_capsules
             .iter()
             .next()
-            .and_then(|&id| self.capsules.iter().find(|c| c.id == id))
+            .and_then(|&id| self.capsules.get(&id))
         {
             if let Some(capsule2) = selected_capsules
                 .iter()
                 .nth(1)
-                .and_then(|&id| self.capsules.iter().find(|c| c.id == id))
+                .and_then(|&id| self.capsules.get(&id))
             {
                 return capsule1.is_inside_at_all(pointer_pos.x, pointer_pos.y)
                     && capsule2.is_inside_at_all(pointer_pos.x, pointer_pos.y);
@@ -285,31 +243,19 @@ impl Robot {
     }
 
     pub fn are_capsules_already_joined(&self, capsule1_id: usize, capsule2_id: usize) -> bool {
-        self.joints.iter().any(|joint| {
+        self.joints.iter().any(|(_joint_id, joint)| {
             (joint.capsule1_id == capsule1_id && joint.capsule2_id == capsule2_id)
                 || (joint.capsule1_id == capsule2_id && joint.capsule2_id == capsule1_id)
         })
     }
 
     pub fn add_joint(&mut self, joint: Joint) {
-        self.joints.push(joint);
+        self.joints.insert(joint.id, joint);
     }
 
     pub fn remove_joint(&mut self, pointer_pos: Pos2) {
         self.joints
-            .retain(|joint| !joint.is_inside(pointer_pos.x, pointer_pos.y));
-    }
-
-    fn find_items_by_point<T>(&self, items: &[T], pointer_pos: Pos2) -> HashSet<usize>
-    where
-        T: HasPosition,
-    {
-        items
-            .iter()
-            .enumerate()
-            .filter(|(_, item)| item.is_inside(pointer_pos.x, pointer_pos.y))
-            .map(|(index, _)| index)
-            .collect()
+            .retain(|_, joint| !joint.is_inside(pointer_pos.x, pointer_pos.y));
     }
 
     pub fn find_capsules_by_point(&self, pointer_pos: Pos2) -> Vec<CapsulePointId> {
@@ -317,32 +263,29 @@ impl Robot {
     }
 
     pub fn find_joints_by_point(&self, pointer_pos: Pos2) -> HashSet<usize> {
-        self.find_items_by_point(&self.joints, pointer_pos)
+        self.joints
+            .iter()
+            .filter_map(|(&joint_id, joint)| {
+                if joint.is_inside(pointer_pos.x, pointer_pos.y) {
+                    Some(joint_id)
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     pub fn get_joint_count(&self) -> usize {
         self.joints.len()
     }
 
-    // pub fn update_impulse_joints(&mut self, motor_directions: &[f32]) {
-    //     for (index, (_joint_handle, impulse_joint)) in self.impulse_joint_set.iter_mut().enumerate() {
-    //         if let Some(motor_direction) = motor_directions.get(index) {
-    //             impulse_joint.data.set_motor_velocity(
-    //                 JointAxis::AngX,
-    //                 TARGET_VELOCITY * motor_direction,
-    //                 MOTOR_DAMPING,
-    //             );
-    //         }
-    //     }
-    // }
-
     pub fn update_joint_motor_directions(
         &mut self,
         motor_directions: &[f32],
         physics_world: &mut physics_world::PhysicsWorld,
     ) {
-        for (index, joint) in self.joints.iter_mut().enumerate() {
-            if let Some(motor_direction) = motor_directions.get(index) {
+        for (joint_id, joint) in self.joints.iter_mut() {
+            if let Some(motor_direction) = motor_directions.get(*joint_id) {
                 joint.set_motor_direction(*motor_direction, physics_world);
             }
         }
@@ -356,7 +299,7 @@ impl Robot {
         selected_joints: &HashSet<usize>,
         hovered_joints: &Vec<usize>,
     ) {
-        for capsule in self.capsules.iter() {
+        for (_capsule_id, capsule) in self.capsules.iter() {
             let mut selection_level1 = SelectionLevel::None;
             let mut selection_level2 = SelectionLevel::None;
             let mut selection_level_body = SelectionLevel::None;
@@ -366,7 +309,7 @@ impl Robot {
                 point_type,
             } in hovered_capsule_points.iter()
             {
-                if capsule.id == *capsule_id {
+                if _capsule_id == capsule_id {
                     match point_type {
                         PointType::Pt1 => selection_level1 = SelectionLevel::Hovered,
                         PointType::Pt2 => selection_level2 = SelectionLevel::Hovered,
@@ -384,7 +327,7 @@ impl Robot {
                 point_type,
             } in selected_capsule_points.iter()
             {
-                if capsule.id == *capsule_id {
+                if _capsule_id == capsule_id {
                     match point_type {
                         PointType::Pt1 => selection_level1 = SelectionLevel::Selected,
                         PointType::Pt2 => selection_level2 = SelectionLevel::Selected,
@@ -416,7 +359,7 @@ impl Robot {
             capsule.draw(painter, endcap1_color, endcap2_color, body_color);
         }
 
-        for (index, joint) in self.joints.iter().enumerate() {
+        for (index, (_joint_id, joint)) in self.joints.iter().enumerate() {
             let color = self.get_joint_color(index, selected_joints, hovered_joints);
             joint.draw(painter, color);
         }

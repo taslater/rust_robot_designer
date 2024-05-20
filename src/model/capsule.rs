@@ -7,7 +7,6 @@ use crate::constants::PHYSICS_SCALE;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Capsule {
-    pub id: usize,
     pub radius: f32,
     pub point1: CapsulePoint,
     pub point2: CapsulePoint,
@@ -71,10 +70,9 @@ const OUTLINE_WIDTH: f32 = 1.0;
 
 impl Capsule {
     // Constructor
-    pub fn new(id: usize, radius: f32, point1: CapsulePoint, point2: CapsulePoint) -> Self {
+    pub fn new(radius: f32, point1: CapsulePoint, point2: CapsulePoint) -> Self {
         let (_, _, rotation_offset) = Self::from_two_points(point1.into(), point2.into());
         Capsule {
-            id,
             radius,
             point1,
             point2,

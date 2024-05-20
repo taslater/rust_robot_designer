@@ -102,7 +102,7 @@ impl RobotTrainer {
         > = self.physics_world.get_all_rigid_body_observations();
         let observations = get_observations(
             &all_positions_velocities_angles,
-            robots_physics[0].get_capsule_handles(),
+            &robots_physics[0].get_capsule_handles(),
         );
         let n_inputs: usize = observations.len();
 
@@ -129,7 +129,7 @@ impl RobotTrainer {
             let robot_physics = &self.robots_physics[i];
             let evaluations = get_evaluations(
                 &all_rigid_body_evaluations,
-                robot_physics.get_capsule_handles(),
+                &robot_physics.get_capsule_handles(),
             );
             // take the mean of the evaluations
             let evaluation: f32 = evaluations.iter().sum::<f32>() / evaluations.len() as f32;
@@ -181,16 +181,12 @@ impl RobotTrainer {
             RigidBodyObservation,
         > = self.physics_world.get_all_rigid_body_observations();
 
-        // for robot in &mut self.robots {
-        //     robot.update_motors(&mut self.physics_world);
-        // }
-
         for i in 0..self.robots.len() {
             let robot = &self.robots[i];
             let robot_physics = &self.robots_physics[i];
             let observations = get_observations(
                 &all_positions_velocities_angles,
-                robot_physics.get_capsule_handles(),
+                &robot_physics.get_capsule_handles(),
             );
             let outputs_mat: nalgebra::Matrix<
                 f64,
@@ -210,7 +206,7 @@ impl RobotTrainer {
 
         self.physics_world.step();
 
-        for (robot, robot_physics) in self.robots.iter_mut().zip(&self.robots_physics) {
+        for (robot, robot_physics) in self.robots.iter_mut().zip(&mut self.robots_physics) {
             robot_physics.update_robot_physics(robot, &self.physics_world);
         }
 

@@ -9,24 +9,27 @@ use nalgebra::{point, vector};
 use rapier2d::prelude::*;
 use std::collections::HashMap;
 
+pub(crate) struct CapsuleData {
+    rigid_body_handle: RigidBodyHandle,
+    initial_position: Isometry<f32>,
+}
+
 struct RobotPhysicsHandles {
-    pub capsule_handles: HashMap<usize, RigidBodyHandle>,
-    pub joint_handles: HashMap<usize, ImpulseJointHandle>,
-    pub initial_positions: HashMap<usize, Isometry<f32>>,
+    capsule_data: HashMap<usize, CapsuleData>,
+    joint_map: HashMap<usize, ImpulseJointHandle>,
 }
 
 impl RobotPhysicsHandles {
     pub fn new() -> Self {
         RobotPhysicsHandles {
-            capsule_handles: HashMap::new(),
-            joint_handles: HashMap::new(),
-            initial_positions: HashMap::new(),
+            capsule_data: HashMap::new(),
+            joint_map: HashMap::new(),
         }
     }
 
     pub fn clear(&mut self) {
-        self.capsule_handles.clear();
-        self.joint_handles.clear();
+        self.capsule_data.clear();
+        self.joint_map.clear();
     }
 }
 
@@ -41,16 +44,20 @@ impl RobotPhysics {
         }
     }
 
-    pub fn get_capsule_handles(&self) -> &HashMap<usize, RigidBodyHandle> {
-        &self.handles.capsule_handles
+    pub fn get_capsule_handles(&self) -> HashMap<usize, RigidBodyHandle> {
+        self
+            .handles
+            .capsule_data
+            .iter()
+            .map(|(id, data)| (*id, data.rigid_body_handle))
+            .collect()
     }
 
-    // pub fn get_impulse_joint(&self, joint_id: usize) -> Option<&ImpulseJointHandle> {
-    //     self.handles.joint_handles.get(&joint_id)
-    // }
-
     pub fn get_impulse_joint_handle(&self, joint_id: usize) -> ImpulseJointHandle {
-        self.handles.joint_handles.get(&joint_id).unwrap().clone()
+        *self.handles
+            .joint_map
+            .get(&joint_id)
+            .unwrap()
     }
 
     pub fn clear(&mut self) {
@@ -58,12 +65,8 @@ impl RobotPhysics {
     }
 
     pub fn build_robot(&mut self, robot: &mut Robot, physics_world: &mut PhysicsWorld) {
-        let mut capsule_handles: HashMap<usize, RigidBodyHandle> = HashMap::new();
-        let mut joint_handles: HashMap<usize, ImpulseJointHandle> = HashMap::new();
-        let mut initial_positions: HashMap<
-            usize,
-            nalgebra::Isometry<f32, nalgebra::Unit<nalgebra::Complex<f32>>, 2>,
-        > = HashMap::new();
+        let mut capsule_data: HashMap<usize, CapsuleData> = HashMap::new();
+        let mut joint_map: HashMap<usize, ImpulseJointHandle> = HashMap::new();
 
         // Create the capsules and populate the robot state
         for (capsule_id, capsule) in robot.get_capsules() {
@@ -73,7 +76,6 @@ impl RobotPhysics {
                 .can_sleep(false)
                 .build();
             let initial_position = rigid_body.position().clone();
-            initial_positions.insert(*capsule_id, initial_position);
             let (physics_offset_x, physics_offset_y) = capsule.offset_points_physics();
             let pt_a: nalgebra::OPoint<f32, nalgebra::Const<2>> =
                 point![physics_offset_x, physics_offset_y];
@@ -90,7 +92,13 @@ impl RobotPhysics {
             .build();
             let body_handle = physics_world.add_rigid_body(rigid_body);
             physics_world.add_collider_w_parent(collider, body_handle);
-            capsule_handles.insert(*capsule_id, body_handle);
+            capsule_data.insert(
+                *capsule_id,
+                CapsuleData {
+                    rigid_body_handle: body_handle,
+                    initial_position,
+                },
+            );
         }
 
         // Collect the joint positions and capsule centers before the loop
@@ -129,8 +137,8 @@ impl RobotPhysics {
             .zip(joint_positions.iter())
         {
             let (_, capsule1_id, capsule2_id, position, joint_min, joint_max) = joint_props;
-            let body_handle1 = capsule_handles.get(&capsule1_id).unwrap();
-            let body_handle2 = capsule_handles.get(&capsule2_id).unwrap();
+            let body_handle1 = capsule_data.get(&capsule1_id).unwrap().rigid_body_handle;
+            let body_handle2 = capsule_data.get(&capsule2_id).unwrap().rigid_body_handle;
             let physics_joint_pos: Pos2 = to_physics_coords(pos2(position.x, position.y));
 
             let capsule1_center_option: Option<Pos2> = capsule_centers
@@ -174,36 +182,38 @@ impl RobotPhysics {
                     .limits([*joint_min, *joint_max])
                     .build();
                 let impulse_joint_handle =
-                    physics_world.add_impulse_joint(*body_handle1, *body_handle2, revolute_joint);
-                joint_handles.insert(joint_props.0, impulse_joint_handle);
+                    physics_world.add_impulse_joint(body_handle1, body_handle2, revolute_joint);
+                joint_map.insert(
+                    joint_props.0,
+                    impulse_joint_handle,
+                );
                 joint.set_handle(impulse_joint_handle);
             }
         }
         self.handles = RobotPhysicsHandles {
-            capsule_handles,
-            joint_handles,
-            initial_positions,
-        }
+            capsule_data,
+            joint_map,
+        };
     }
 
     pub fn reset_robot(&mut self, physics_world: &mut PhysicsWorld) {
-        for (capsule_id, body_handle) in &self.handles.capsule_handles {
-            if let Some(rigid_body) = physics_world.get_rigid_body_mut(*body_handle) {
-                if let Some(initial_position) = self.handles.initial_positions.get(capsule_id) {
-                    rigid_body.set_position(*initial_position, true);
-                    rigid_body.set_linvel(vector![0.0, 0.0], true);
-                    rigid_body.set_angvel(0.0, true);
-                    rigid_body.reset_forces(true);
-                }
+        for (_capsule_id, capsule_data) in self.handles.capsule_data.iter() {
+            if let Some(rigid_body) =
+                physics_world.get_rigid_body_mut(capsule_data.rigid_body_handle)
+            {                rigid_body.set_position(capsule_data.initial_position, true);
+                rigid_body.set_linvel(vector![0.0, 0.0], true);
+                rigid_body.set_angvel(0.0, true);
+                rigid_body.reset_forces(true);
+                // }
             }
         }
     }
 
-    pub fn update_robot_physics(&self, robot: &mut Robot, physics_world: &PhysicsWorld) {
+    pub fn update_robot_physics(&mut self, robot: &mut Robot, physics_world: &PhysicsWorld) {
         // Update the robot's capsule positions and rotations
-        for (capsule_id, capsule) in robot.get_capsules_mut() {
-            if let Some(body_handle) = self.handles.capsule_handles.get(capsule_id) {
-                if let Some(body) = physics_world.get_rigid_body(*body_handle) {
+        for (capsule_id, capsule_data) in self.handles.capsule_data.iter_mut() {
+            if let Some(capsule) = robot.get_capsule_mut(*capsule_id) {
+                if let Some(body) = physics_world.get_rigid_body(capsule_data.rigid_body_handle) {
                     let physics_position = body.position().translation;
                     let rotation =
                         body.position().rotation.angle() + capsule.get_initial_rotation_offset();
@@ -216,10 +226,11 @@ impl RobotPhysics {
         }
 
         // Update the robot's joint positions
-        for (joint_id, joint) in robot.get_joints_mut() {
-            if let Some(impulse_joint_handle) = self.handles.joint_handles.get(joint_id) {
-                if let Some(impulse_joint) = physics_world.get_impulse_joint(*impulse_joint_handle)
-                {
+        for (joint_id, impulse_joint_handle) in self.handles.joint_map.iter() {
+            if let Some(impulse_joint) =
+                physics_world.get_impulse_joint(*impulse_joint_handle)
+            {
+                if let Some(joint) = robot.get_joint_mut(*joint_id) {
                     let body1_pos = physics_world
                         .get_rigid_body(impulse_joint.body1)
                         .unwrap()

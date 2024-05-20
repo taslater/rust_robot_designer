@@ -33,12 +33,12 @@ impl Robot {
         }
     }
 
-    pub fn get_capsules(&self) -> &HashMap<usize, Capsule> {
-        &self.capsules
+    pub fn get_capsule_mut(&mut self, capsule_id: usize) -> Option<&mut Capsule> {
+        self.capsules.get_mut(&capsule_id)
     }
 
-    pub fn get_capsules_mut(&mut self) -> &mut HashMap<usize, Capsule> {
-        &mut self.capsules
+    pub fn get_capsules(&self) -> &HashMap<usize, Capsule> {
+        &self.capsules
     }
 
     pub fn get_joints(&self) -> &HashMap<usize, Joint> {
@@ -47,6 +47,10 @@ impl Robot {
 
     pub fn get_joints_mut(&mut self) -> &mut HashMap<usize, Joint> {
         &mut self.joints
+    }
+
+    pub fn get_joint_mut(&mut self, joint_id: usize) -> Option<&mut Joint> {
+        self.joints.get_mut(&joint_id)
     }
 
     pub fn joints_count(&self) -> usize {

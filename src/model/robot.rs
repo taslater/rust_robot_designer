@@ -3,14 +3,15 @@ use super::capsule::{
     Capsule, CapsuleColors, CapsulePoint, CapsulePointId, PointInsideCapsule, PointType,
     SelectionLevel,
 };
-use crate::{editor::capsule_editor::OverlappingCapsules, physics_world};
 use crate::model::joint::Joint;
+use crate::physics_world::RigidBodyObservation;
+use crate::{editor::capsule_editor::OverlappingCapsules, physics_world};
 use eframe::egui;
 use egui::{Color32, Pos2};
+use rapier2d::dynamics::RigidBodyHandle;
+use std::collections::HashMap;
 
 use rand::Rng;
-
-
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -119,7 +120,11 @@ impl Robot {
     }
 
     pub fn update_capsule_point_pos(&mut self, capsule_point_id: CapsulePointId, x: f32, y: f32) {
-        if let Some(capsule) = self.capsules.iter_mut().find(|c| c.id == capsule_point_id.capsule_id) {
+        if let Some(capsule) = self
+            .capsules
+            .iter_mut()
+            .find(|c| c.id == capsule_point_id.capsule_id)
+        {
             match capsule_point_id.point_type {
                 PointType::Pt1 => {
                     capsule.point1.x = x;
@@ -327,7 +332,11 @@ impl Robot {
     //     }
     // }
 
-    pub fn update_joint_motor_directions(&mut self, motor_directions: &[f32], physics_world: &mut physics_world::PhysicsWorld) {
+    pub fn update_joint_motor_directions(
+        &mut self,
+        motor_directions: &[f32],
+        physics_world: &mut physics_world::PhysicsWorld,
+    ) {
         for (index, joint) in self.joints.iter_mut().enumerate() {
             if let Some(motor_direction) = motor_directions.get(index) {
                 joint.set_motor_direction(*motor_direction, physics_world);

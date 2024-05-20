@@ -172,6 +172,10 @@ impl PhysicsWorld {
         self.rigid_body_set.get(handle)
     }
 
+    pub fn get_rigid_body_mut(&mut self, handle: RigidBodyHandle) -> Option<&mut RigidBody> {
+        self.rigid_body_set.get_mut(handle)
+    }
+
     pub fn get_impulse_joint(&self, handle: ImpulseJointHandle) -> Option<&ImpulseJoint> {
         self.impulse_joint_set.get(handle)
     }
@@ -220,7 +224,7 @@ impl PhysicsWorld {
         );
     }
 
-    pub fn get_all_rigid_body_positions_velocities_angles(
+    pub fn get_all_rigid_body_observations(
         &self,
     ) -> HashMap<RigidBodyHandle, RigidBodyObservation> {
         self.rigid_body_set
@@ -229,7 +233,7 @@ impl PhysicsWorld {
                 let pos: &nalgebra::Isometry<f32, nalgebra::Unit<nalgebra::Complex<f32>>, 2> =
                     rigid_body.position();
                 let translation = pos.translation.vector;
-                let trans_y: f32 = translation[1];
+                let trans_y: f32 = translation[1] / 100.0;
                 let rotation: nalgebra::Unit<nalgebra::Complex<f32>> = pos.rotation;
                 let sin: f32 = rotation.im;
                 let cos: f32 = rotation.re;
@@ -253,6 +257,15 @@ impl PhysicsWorld {
                         angvel,
                     },
                 )
+            })
+            .collect()
+    }
+
+    pub fn get_all_rigid_body_evaluations(&self) -> HashMap<RigidBodyHandle, f32> {
+        self.rigid_body_set
+            .iter()
+            .map(|(rigid_body_handle, rigid_body)| {
+                (rigid_body_handle, rigid_body.position().translation.x)
             })
             .collect()
     }

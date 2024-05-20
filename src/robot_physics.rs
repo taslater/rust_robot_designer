@@ -12,6 +12,7 @@ use std::collections::HashMap;
 struct RobotPhysicsHandles {
     pub capsule_handles: HashMap<usize, RigidBodyHandle>,
     pub joint_handles: HashMap<usize, ImpulseJointHandle>,
+    pub initial_positions: HashMap<usize, Isometry<f32>>,
 }
 
 impl RobotPhysicsHandles {
@@ -19,6 +20,7 @@ impl RobotPhysicsHandles {
         RobotPhysicsHandles {
             capsule_handles: HashMap::new(),
             joint_handles: HashMap::new(),
+            initial_positions: HashMap::new(),
         }
     }
 
@@ -39,6 +41,18 @@ impl RobotPhysics {
         }
     }
 
+    pub fn get_capsule_handles(&self) -> &HashMap<usize, RigidBodyHandle> {
+        &self.handles.capsule_handles
+    }
+
+    pub fn get_impulse_joint(&self, joint_id: usize) -> Option<&ImpulseJointHandle> {
+        self.handles.joint_handles.get(&joint_id)
+    }
+
+    pub fn get_impulse_joint_handle(&self, joint_id: usize) -> ImpulseJointHandle {
+        self.handles.joint_handles.get(&joint_id).unwrap().clone()
+    }
+
     pub fn clear(&mut self) {
         self.handles.clear();
     }
@@ -46,6 +60,7 @@ impl RobotPhysics {
     pub fn build_robot(&mut self, robot: &mut Robot, physics_world: &mut PhysicsWorld) {
         let mut capsule_handles = HashMap::new();
         let mut joint_handles = HashMap::new();
+        let mut initial_positions = HashMap::new();
 
         // Create the capsules and populate the robot state
         for capsule in robot.get_capsules() {
@@ -54,6 +69,8 @@ impl RobotPhysics {
                 .translation(vector![physics_center.x, physics_center.y])
                 .can_sleep(false)
                 .build();
+            let initial_position = rigid_body.position().clone();
+            initial_positions.insert(capsule.id, initial_position);
             let (physics_offset_x, physics_offset_y) = capsule.offset_points_physics();
             let pt_a: nalgebra::OPoint<f32, nalgebra::Const<2>> =
                 point![physics_offset_x, physics_offset_y];
@@ -162,6 +179,20 @@ impl RobotPhysics {
         self.handles = RobotPhysicsHandles {
             capsule_handles,
             joint_handles,
+            initial_positions,
+        }
+    }
+
+    pub fn reset_robot(&mut self, physics_world: &mut PhysicsWorld) {
+        for (capsule_id, body_handle) in &self.handles.capsule_handles {
+            if let Some(rigid_body) = physics_world.get_rigid_body_mut(*body_handle) {
+                if let Some(initial_position) = self.handles.initial_positions.get(capsule_id) {
+                    rigid_body.set_position(*initial_position, true);
+                    rigid_body.set_linvel(vector![0.0, 0.0], true);
+                    rigid_body.set_angvel(0.0, true);
+                    rigid_body.reset_forces(true);
+                }
+            }
         }
     }
 

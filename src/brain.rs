@@ -1,7 +1,7 @@
 use nalgebra::DMatrix;
 // rand gaussian
 // use rand::distributions::Standard;
-use meansd::MeanSD;
+// use meansd::MeanSD;
 use rand::prelude::*;
 use rand_distr::{Distribution, Normal};
 use std::any::Any;

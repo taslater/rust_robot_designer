@@ -36,6 +36,15 @@ pub struct RigidBodyObservation {
     pub vel_x: f32,
     pub vel_y: f32,
     pub angvel: f32,
+    pub d_vel_x: f32,
+    pub d_vel_y: f32,
+    pub d_angvel: f32,
+}
+
+pub struct RigidBodyVelocityObservation {
+    pub vel_x: f32,
+    pub vel_y: f32,
+    pub angvel: f32,
 }
 
 pub struct PhysicsWorld {
@@ -51,6 +60,7 @@ pub struct PhysicsWorld {
     pub ccd_solver: CCDSolver,
     pub query_pipeline: QueryPipeline,
     pub event_handler: (),
+    pub prev_rigid_body_velocities: HashMap<RigidBodyHandle, RigidBodyVelocityObservation>,
 }
 
 impl PhysicsWorld {
@@ -67,6 +77,7 @@ impl PhysicsWorld {
         let ccd_solver = CCDSolver::new();
         let query_pipeline = QueryPipeline::new();
         let event_handler = ();
+        let prev_rigid_body_velocities = HashMap::new();
 
         PhysicsWorld {
             rigid_body_set: RigidBodySet::new(),
@@ -81,6 +92,7 @@ impl PhysicsWorld {
             ccd_solver,
             query_pipeline,
             event_handler,
+            prev_rigid_body_velocities,
         }
     }
 
@@ -143,6 +155,7 @@ impl PhysicsWorld {
             // include_forces
             true,
         );
+        self.prev_rigid_body_velocities.clear();
     }
 
     pub fn add_rigid_body(&mut self, rigid_body: RigidBody) -> RigidBodyHandle {
@@ -213,27 +226,51 @@ impl PhysicsWorld {
     }
 
     pub fn get_all_rigid_body_observations(
-        &self,
+        &mut self,
     ) -> HashMap<RigidBodyHandle, RigidBodyObservation> {
         self.rigid_body_set
             .iter()
             .map(|(rigid_body_handle, rigid_body)| {
+                let mut new_rigid_body_velocity = RigidBodyVelocityObservation {
+                    vel_x: 0.0,
+                    vel_y: 0.0,
+                    angvel: 0.0,
+                };
+                let prev_rigid_body_velocity = self
+                    .prev_rigid_body_velocities
+                    .get(&rigid_body_handle)
+                    .unwrap_or(&RigidBodyVelocityObservation {
+                        vel_x: 0.0,
+                        vel_y: 0.0,
+                        angvel: 0.0,
+                    });
                 let pos: &nalgebra::Isometry<f32, nalgebra::Unit<nalgebra::Complex<f32>>, 2> =
                     rigid_body.position();
                 let translation = pos.translation.vector;
-                let trans_y: f32 = translation[1] / 100.0;
+                let trans_y: f32 = translation[1] / 10.0;
                 let rotation: nalgebra::Unit<nalgebra::Complex<f32>> = pos.rotation;
-                let sin: f32 = rotation.im;
-                let cos: f32 = rotation.re;
+                let sin: f32 = rotation.im * 10.0;
+                let cos: f32 = rotation.re * 10.0;
                 let linvel: &nalgebra::Matrix<
                     f32,
                     nalgebra::Const<2>,
                     nalgebra::Const<1>,
                     nalgebra::ArrayStorage<f32, 2, 1>,
                 > = rigid_body.linvel();
-                let vel_x: f32 = linvel[(0, 0)];
-                let vel_y: f32 = linvel[(1, 0)];
-                let angvel: f32 = rigid_body.angvel();
+                let vel_x: f32 = linvel[(0, 0)] * 10.0;
+                let vel_y: f32 = linvel[(1, 0)] * 10.0;
+                let angvel: f32 = rigid_body.angvel() * 100.0;
+                // set previous velocities
+                new_rigid_body_velocity.vel_x = vel_x;
+                new_rigid_body_velocity.vel_y = vel_y;
+                new_rigid_body_velocity.angvel = angvel;
+                // calculate the change in velocities
+                let d_vel_x: f32 = 100.0 * (vel_x - prev_rigid_body_velocity.vel_x);
+                let d_vel_y: f32 = 100.0 * (vel_y - prev_rigid_body_velocity.vel_y);
+                let d_angvel: f32 = 100.0 * (angvel - prev_rigid_body_velocity.angvel);
+                // release the lock on the previous velocities
+                self.prev_rigid_body_velocities
+                    .insert(rigid_body_handle, new_rigid_body_velocity);
                 (
                     rigid_body_handle,
                     RigidBodyObservation {
@@ -243,6 +280,9 @@ impl PhysicsWorld {
                         vel_x,
                         vel_y,
                         angvel,
+                        d_vel_x,
+                        d_vel_y,
+                        d_angvel,
                     },
                 )
             })

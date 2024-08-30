@@ -1,280 +1,202 @@
-use itertools::Itertools;
-use nalgebra::{DMatrix, DVector, RowDVector};
+use crate::cma_es_fns::*;
+use nalgebra::{DMatrix, DVector};
 use rand::prelude::*;
 use rand_distr::StandardNormal;
 
-struct CMAESParameters {
-    pub dimension: usize,
-    pub population_size: usize,
-    pub mu: usize,
-    pub weights: Vec<f64>,
-    pub mu_eff: f64,
-    pub c_c: f64,
-    pub c_s: f64,
-    pub c_1: f64,
-    pub c_mu: f64,
-    pub d_amps: f64,
-    pub chi_n: f64,
-}
-
-impl CMAESParameters {
-    pub fn new(dimension: usize, population_size: usize) -> Self {
-        let mu = population_size / 2;
-        let mu_eff = (population_size as f64).ln();
-        // let alpha_mu = 1.0 + (mu_eff / 2.0).floor().max(1.0);
-
-        let weights: Vec<f64> = (0..mu)
-            .map(|i| (population_size as f64 / 2.0 + 0.5 - i as f64).ln())
-            .collect();
-        let weights_sum: f64 = weights.iter().sum();
-        let weights: Vec<f64> = weights.iter().map(|w| w / weights_sum).collect();
-
-        let c_s = (mu_eff + 2.0) / (dimension as f64 + mu_eff + 5.0);
-        let c_c = 4.0 / (dimension as f64 + 4.0);
-        let c_1 = 2.0 / ((dimension as f64 + 1.3).powi(2) + mu_eff);
-        let c_mu = (2.0 * (mu_eff - 2.0 + 1.0 / mu_eff)).min(1.0 - c_1);
-        let d_amps =
-            1.0 + 2.0 * (0.0f64).max(((mu_eff - 1.0) / (dimension as f64 + 1.0)).sqrt()) + c_s;
-        let chi_n = (dimension as f64).sqrt()
-            * (1.0 - 1.0 / (4.0 * dimension as f64) + 1.0 / (21.0 * (dimension as f64).powi(2)));
-
-        CMAESParameters {
-            dimension,
-            population_size,
-            mu,
-            weights,
-            mu_eff,
-            c_c,
-            c_s,
-            c_1,
-            c_mu,
-            d_amps,
-            chi_n,
-        }
-    }
-}
-
 pub struct CMAES {
-    params: CMAESParameters,
+    dimension: usize,
+    population_size: usize,
+    // mu: usize,
+    weights: DVector<f64>,
+    mu_eff: f64,
+    cc: f64,
+    cs: f64,
+    c1: f64,
+    c_mu: f64,
+    damps: f64,
+    chi_n: f64,
     mean: DVector<f64>,
     sigma: f64,
     c: DMatrix<f64>,
     p_c: DVector<f64>,
     p_s: DVector<f64>,
-    eigen_decompositon_updated: usize,
-    eigen_basis: DMatrix<f64>,
-    eigen_values: DVector<f64>,
+    b: DMatrix<f64>,
+    d: DMatrix<f64>,
     invsqrt_c: DMatrix<f64>,
+    eigen_eval: usize,
+    counteval: usize,
     rng: ThreadRng,
 }
 
 impl CMAES {
-    pub fn new(mean: DVector<f64>, sigma: f64) -> Self {
-        let dimension = mean.len();
-        let params = CMAESParameters::new(
-            dimension,
-            (4.0 + (3.0 * (dimension as f64).ln()).floor()) as usize,
-        );
+    pub fn new(
+        initial_mean: DVector<f64>,
+        initial_sigma: f64,
+        population_size: Option<usize>,
+    ) -> Self {
+        let dimension = initial_mean.len();
+        let lambda = get_λ_rs(dimension, population_size);
+        let mu = get_μ_rs(lambda);
+        let weights = get_weights_rs(mu, lambda);
+        let mu_eff = get_μeff_rs(&weights);
+        let cc = get_cc_rs(mu_eff, dimension, None);
+        let cs = get_cσ_rs(mu_eff, dimension, None);
+        let c1 = get_c1_rs(dimension, mu_eff, None);
+        let c_mu = get_cμ_rs(dimension, mu_eff, None);
+        let damps = get_damps_rs(mu_eff, dimension, cs, None);
+        let chi_n = get_chi_n_rs(dimension);
 
-        let c = DMatrix::<f64>::identity(dimension, dimension);
-        let p_c = DVector::<f64>::zeros(dimension);
-        let p_s = DVector::<f64>::zeros(dimension);
-
-        let eigen_decompositon_updated = 0;
-        let eigen_basis = DMatrix::<f64>::identity(dimension, dimension);
-        let eigen_values = DVector::<f64>::from_element(dimension, 1.0);
-        let invsqrt_c = DMatrix::<f64>::identity(dimension, dimension);
-
-        let rng = thread_rng();
+        let c = DMatrix::identity(dimension, dimension);
+        let b = DMatrix::identity(dimension, dimension);
+        let d = DMatrix::identity(dimension, dimension);
+        let invsqrt_c = DMatrix::identity(dimension, dimension);
 
         CMAES {
-            params,
-            mean,
-            sigma,
+            dimension,
+            population_size: lambda,
+            // mu,
+            weights,
+            mu_eff,
+            cc,
+            cs,
+            c1,
+            c_mu,
+            damps,
+            chi_n,
+            mean: initial_mean,
+            sigma: initial_sigma,
             c,
-            p_c,
-            p_s,
-            eigen_decompositon_updated,
-            eigen_basis,
-            eigen_values,
+            p_c: DVector::zeros(dimension),
+            p_s: DVector::zeros(dimension),
+            b,
+            d,
             invsqrt_c,
-            rng,
+            eigen_eval: 0,
+            counteval: 0,
+            rng: thread_rng(),
         }
     }
 
     pub fn ask(&mut self) -> Vec<DVector<f64>> {
-        self.update_eigen_decomposition(self.eigen_decompositon_updated);
-
-        let mut population = Vec::with_capacity(self.params.population_size);
-        for _ in 0..self.params.population_size {
-            let z: DVector<f64> = DVector::from_iterator(
-                self.params.dimension,
-                self.eigen_values
-                    .iter()
-                    // .map(|&ev| self.sigma * ev.sqrt() * self.rng.sample(rand_distr::StandardNormal)),
-                    .map(|&ev| self.sigma * ev.sqrt() * self.rng.sample::<f64, _>(StandardNormal)),
+        println!("Asking...");
+        let z: DMatrix<f64> = DMatrix::from_fn(self.population_size, self.dimension, |_, _| {
+            self.rng.sample::<f64, _>(StandardNormal)
+        });
+        let x: nalgebra::Matrix<
+            f64,
+            nalgebra::Dyn,
+            nalgebra::Dyn,
+            nalgebra::VecStorage<f64, nalgebra::Dyn, nalgebra::Dyn>,
+        > = sample_population_rs(&z, &self.mean, self.sigma, &self.b, &self.d);
+        // x.column_iter().map(|col| col.into_owned()).collect()
+        // return a Vec of rows from x instead of columns
+        let mut population = Vec::with_capacity(self.population_size);
+        for i in 0..self.population_size {
+            let row: nalgebra::Matrix<
+                f64,
+                nalgebra::Const<1>,
+                nalgebra::Dyn,
+                nalgebra::ViewStorage<
+                    '_,
+                    f64,
+                    nalgebra::Const<1>,
+                    nalgebra::Dyn,
+                    nalgebra::Const<1>,
+                    nalgebra::Dyn,
+                >,
+            > = x.row(i);
+            // convert row Matrix to owned DVector
+            population.push(
+                DVector::from_iterator(x.ncols(), row.iter().cloned()),
             );
-            let x = self.mean.clone() + self.eigen_basis.clone() * z;
-            population.push(x);
         }
-
         population
     }
 
-    pub fn tell(&mut self, population: &[DVector<f64>], fitness_values: &[f64]) {
-        let sorted_indices = fitness_values
-            .iter()
-            .enumerate()
-            .sorted_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
-            .map(|(index, _)| index)
-            .collect::<Vec<_>>();
-        let best_solution = population[sorted_indices[0]].clone();
+    pub fn tell(&mut self, solutions: &[DVector<f64>], fitnesses: &[f64]) {
+        println!("Telling...");
+        self.counteval += self.population_size;
 
-        self.update_mean(population, &sorted_indices);
-        self.update_evolution_paths(&best_solution);
-        self.update_covariance_matrix(population);
-        self.update_sigma();
+        let x_sorted = sort_population_rs(solutions, fitnesses, 0.0);
+        let xold = self.mean.clone();
+
+        let (m_new, y_mean) = update_mean_rs(&x_sorted, &self.mean, &self.weights, self.sigma);
+        self.mean = m_new;
+
+        self.p_c = update_evolution_path_p_c_rs(&self.p_c, self.cc, self.mu_eff, &y_mean);
+
+        // let x_diff = &x_sorted - &xold;
+        let mut x_diff = x_sorted.clone();
+        for i in 0..x_sorted.ncols() {
+            x_diff.set_column(i, &(x_sorted.column(i) - &xold));
+        }
+        // println!("x_diff shape: {:?}", x_diff.shape());
+        // let x_diff_matrix = DMatrix::from_column_slice(x_diff.len(), 1, x_diff.as_slice());
+        // println!("x_diff_matrix shape: {:?}", x_diff_matrix.shape());
+
+        self.c = update_covariance_matrix_rs(
+            &self.c,
+            self.c1,
+            self.c_mu,
+            &self.p_c,
+            &x_diff,
+            &self.weights,
+            self.sigma,
+        );
+
+        self.p_s = update_evolution_path_p_σ_rs(
+            &self.p_s,
+            self.cs,
+            self.mu_eff,
+            &self.b,
+            &self.d,
+            &y_mean,
+        );
+
+        self.sigma = update_step_size_rs(self.sigma, self.cs, self.damps, &self.p_s, self.chi_n);
+
+        self.update_eigen_decomposition();
     }
 
-    fn update_eigen_decomposition(&mut self, current_generation: usize) {
-        if current_generation > self.eigen_decompositon_updated + self.params.dimension / 10 {
-            let eigen_decomp = self.c.clone().symmetric_eigen();
-            self.eigen_values = eigen_decomp.eigenvalues;
-            self.eigen_basis = eigen_decomp.eigenvectors.transpose();
-            self.invsqrt_c = self
-                .eigen_basis
-                .component_mul(&self.eigen_values.map(|ev| ev.sqrt().recip()))
-                * self.eigen_basis.transpose();
-            self.eigen_decompositon_updated = current_generation;
+    fn update_eigen_decomposition(&mut self) {
+        if self.counteval - self.eigen_eval
+            > (self.population_size as f64 / ((self.c1 + self.c_mu) * self.dimension as f64) / 10.0)
+                as usize
+        {
+            self.eigen_eval = self.counteval;
+            let (diag_d, b_new, d_new) = eigen_decomposition_rs(&self.c);
+            self.d = d_new;
+            self.b = b_new;
+            self.invsqrt_c =
+                &self.b * DMatrix::from_diagonal(&diag_d.map(|x| 1.0 / x)) * self.b.transpose();
         }
     }
 
-    fn update_mean(&mut self, population: &[DVector<f64>], sorted_indices: &[usize]) {
-        assert_eq!(population.len(), sorted_indices.len());
-        assert!(self.params.mu <= sorted_indices.len());
-        assert_eq!(self.params.mu, self.params.weights.len());
-        // check ncols (self.params.dimension) and nrows (self.params.mu) of population
-        assert_eq!(population[0].len(), self.params.dimension);
+    pub fn optimize<F>(
+        &mut self,
+        objective_function: F,
+        max_iterations: usize,
+    ) -> (DVector<f64>, f64)
+    where
+        F: Fn(&DVector<f64>) -> f64,
+    {
+        println!("Optimizing...");
+        for _ in 0..max_iterations {
+            let solutions = self.ask();
+            let fitnesses: Vec<f64> = solutions.iter().map(|s| objective_function(s)).collect();
+            self.tell(&solutions, &fitnesses);
 
-        let iter = sorted_indices[..self.params.mu]
-            .iter()
-            .zip(self.params.weights.iter())
-            .flat_map(|(idx, w)| population[*idx].iter().map(move |x| w * x));
+            if self.termination_criterion_met() {
+                break;
+            }
+        }
 
-        // Check that the iterator will produce the correct number of elements
-        let iter_len = iter.clone().count();
-        println!("iter_len: {}", iter_len);
-        println!("self.params.dimension: {}", self.params.dimension);
-        assert_eq!(iter_len, self.params.dimension);
-
-        let new_mean = RowDVector::from_iterator(self.params.dimension, iter);
-        let mean_diff = new_mean.clone() - self.mean.clone();
-        self.mean = DVector::from_iterator(new_mean.len(), new_mean.iter().cloned());
-
-        let h_sigma = (self.p_s.norm_squared() / self.params.dimension as f64 / self.params.mu_eff
-            * self.params.c_s
-            * (2.0 - self.params.c_s))
-            .sqrt();
-        let delta_h_sigma = (1.0 - h_sigma.powi(2)).sqrt();
-
-        self.p_c = (1.0 - self.params.c_c) * self.p_c.clone()
-            + delta_h_sigma
-                * (self.params.c_c * (2.0 - self.params.c_c) * self.params.mu_eff).sqrt()
-                * self.invsqrt_c.clone()
-                * mean_diff;
-        let p_s: nalgebra::Matrix<
-            f64,
-            nalgebra::Const<1>,
-            nalgebra::Const<1>,
-            nalgebra::ArrayStorage<f64, 1, 1>,
-        > = (1.0 - self.params.c_s) * self.p_s.clone()
-            + (self.params.c_s * (2.0 - self.params.c_s) * self.params.mu_eff).sqrt()
-                * mean_diff.normalize()
-                / self.sigma;
-        self.p_s = DVector::from_column_slice(p_s.as_slice());
+        (self.mean.clone(), self.sigma)
     }
 
-    fn update_evolution_paths(&mut self, best_solution: &DVector<f64>) {
-        let best_diff = best_solution - self.mean.clone();
-        let h_sigma = (self.p_s.norm_squared() / self.params.dimension as f64 / self.params.mu_eff
-            * self.params.c_s
-            * (2.0 - self.params.c_s))
-            .sqrt();
-        let delta_h_sigma = (1.0 - h_sigma.powi(2)).sqrt();
-
-        self.p_c = (1.0 - self.params.c_c) * self.p_c.clone()
-            + delta_h_sigma
-                * (self.params.c_c * (2.0 - self.params.c_c) * self.params.mu_eff).sqrt()
-                * self.invsqrt_c.clone()
-                * best_diff.clone();
-        self.p_s = (1.0 - self.params.c_s) * self.p_s.clone()
-            + (self.params.c_s * (2.0 - self.params.c_s) * self.params.mu_eff).sqrt() * best_diff
-                / self.sigma;
-    }
-
-    fn update_covariance_matrix(&mut self, population: &[DVector<f64>]) {
-        let c_mu = self.params.c_mu * (self.params.dimension as f64 + 2.0)
-            / (self.params.dimension as f64 + 2.0);
-
-        self.c *= 1.0 - self.params.c_1 - c_mu;
-
-        let c_mu_eff_sqrt = (self.params.c_mu * self.params.mu_eff).sqrt();
-        let c_mu_eff_sqrt_inv = 1.0 / c_mu_eff_sqrt;
-        let rank_one_update = self.p_c.clone() * self.p_c.transpose() * self.params.c_1;
-        self.c += rank_one_update;
-
-        let rank_mu_update: DMatrix<f64> = population[..self.params.mu]
-            .iter()
-            .zip(self.params.weights.iter())
-            .map(|(x_i, w_i)| {
-                let z_i = self.invsqrt_c.clone() * (x_i - self.mean.clone()) * c_mu_eff_sqrt_inv;
-                z_i.clone() * z_i.transpose() * *w_i
-            })
-            .sum();
-        self.c += rank_mu_update;
-    }
-
-    fn update_sigma(&mut self) {
-        let sigma_exp = ((self.p_s.norm_squared() / self.params.dimension as f64).sqrt() - 1.0)
-            * (self.params.c_s / self.params.d_amps);
-        self.sigma *= (1.0 + sigma_exp).exp();
+    fn termination_criterion_met(&self) -> bool {
+        // Implement termination criteria here
+        // For example, you could check if the step size (sigma) is below a certain threshold
+        self.sigma < 1e-8
     }
 }
-
-// fn main() {
-//     let objective_function = |x: &DVector<f64>| {
-//         let n = x.len();
-//         let mut sum = 0.0;
-//         for i in 0..n {
-//             sum += 10.0_f64.powf(6.0 * i as f64 / (n - 1) as f64) * x[i].powi(2);
-//         }
-//         sum
-//     };
-
-//     let dimension = 10;
-//     let mean = DVector::from_element(dimension, 0.5);
-//     let sigma = 0.2;
-
-//     let mut optimizer = CMAES::new(mean, sigma);
-//     let mut best_fitness = f64::INFINITY;
-//     let mut best_solution = None;
-
-//     loop {
-//         let population = optimizer.ask();
-//         let fitness_values: Vec<f64> = population.iter().map(|x| objective_function(x)).collect();
-//         optimizer.tell(&population, &fitness_values);
-
-//         let current_best_fitness = fitness_values[0];
-//         if current_best_fitness < best_fitness {
-//             best_fitness = current_best_fitness;
-//             best_solution = Some(population[0].clone());
-//         }
-
-//         if best_fitness < 1e-10 {
-//             break;
-//         }
-//     }
-
-//     println!("Best solution found: {:?}", best_solution);
-//     println!("Best fitness: {}", best_fitness);
-// }

@@ -13,6 +13,7 @@ pub mod constants;
 mod robot_trainer;
 pub mod brain;
 pub mod cma_es;
+pub mod cma_es_fns;
 
 use robot_trainer::RobotTrainer;
 

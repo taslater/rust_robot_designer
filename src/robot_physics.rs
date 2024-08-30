@@ -1,6 +1,6 @@
 use crate::constants::{
     CAPSULE_FRICTION, CAPSULE_RESTITUTION, MOTOR_DAMPING, MOTOR_MAX_FORCE, PHYSICS_SCALE,
-    TARGET_VELOCITY,
+    TARGET_VELOCITY, CAPSULE_DENSITY,
 };
 use crate::model::robot::Robot;
 use crate::physics_world::{to_physics_coords, to_rendering_coords, PhysicsWorld};
@@ -33,15 +33,30 @@ impl RobotPhysicsHandles {
     }
 }
 
+#[derive(Clone)]
+pub struct EvaluationData {
+    pub motion_sum: f32,
+    pub output_sum: f32,
+}
+
 pub struct RobotPhysics {
     handles: RobotPhysicsHandles,
+    evaluation_data: EvaluationData
 }
 
 impl RobotPhysics {
     pub fn new() -> Self {
         RobotPhysics {
             handles: RobotPhysicsHandles::new(),
+            evaluation_data: EvaluationData {
+                motion_sum: 0.0,
+                output_sum: 0.0,
+            },
         }
+    }
+
+    pub fn get_evaluation_data(&self) -> EvaluationData {
+        self.evaluation_data.clone()
     }
 
     pub fn get_capsule_handles(&self) -> HashMap<usize, RigidBodyHandle> {
@@ -89,6 +104,7 @@ impl RobotPhysics {
             .collision_groups(InteractionGroups::new(0b0010.into(), 0b0001.into()))
             .restitution(CAPSULE_RESTITUTION)
             .friction(CAPSULE_FRICTION)
+            .density(CAPSULE_DENSITY)
             .build();
             let body_handle = physics_world.add_rigid_body(rigid_body);
             physics_world.add_collider_w_parent(collider, body_handle);
@@ -177,6 +193,7 @@ impl RobotPhysics {
                     .local_anchor1(offset1)
                     .local_anchor2(offset2)
                     .motor_model(MotorModel::AccelerationBased)
+                    // .motor_model(MotorModel::ForceBased)
                     .motor_max_force(MOTOR_MAX_FORCE)
                     .motor_velocity(TARGET_VELOCITY, MOTOR_DAMPING)
                     .limits([*joint_min, *joint_max])
@@ -204,9 +221,15 @@ impl RobotPhysics {
                 rigid_body.set_linvel(vector![0.0, 0.0], true);
                 rigid_body.set_angvel(0.0, true);
                 rigid_body.reset_forces(true);
-                // }
+                
             }
         }
+        self.evaluation_data.motion_sum = 0.0;
+        self.evaluation_data.output_sum = 0.0;
+    }
+
+    pub fn update_evaluation_data_output(&mut self, output: f32) {
+        self.evaluation_data.output_sum += output.abs();
     }
 
     pub fn update_robot_physics(&mut self, robot: &mut Robot, physics_world: &PhysicsWorld) {
@@ -221,6 +244,9 @@ impl RobotPhysics {
                         to_rendering_coords(pos2(physics_position.x, physics_position.y));
                     let rendering_half_length = capsule.half_length();
                     capsule.update_endpoints(rendering_position, rendering_half_length, rotation);
+                    let linvel = body.linvel();
+                    let angvel = body.angvel();
+                    self.evaluation_data.motion_sum += linvel.norm() + angvel.abs();
                 }
             }
         }

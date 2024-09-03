@@ -1,3 +1,5 @@
+use crate::constants::{DISTANCE_WEIGHT, MOTION_WEIGHT, OUTPUT_WEIGHT, POPULATION_SIZE, SIGMA_INITIAL};
+
 use std::collections::{HashMap, HashSet};
 
 use rapier2d::dynamics::RigidBodyHandle;
@@ -6,7 +8,7 @@ use crate::brain::{get_brain, Sequential};
 use crate::cma_es::CMAES;
 use crate::model::robot::Robot;
 use crate::physics_world::{flat_ground_collider, PhysicsWorld, RigidBodyObservation};
-use crate::robot_physics::{EvaluationData, RobotPhysics};
+use crate::robot_physics::RobotPhysics;
 use nalgebra::DVector;
 
 use crate::constants::STEPS_PER_GENERATION;
@@ -18,7 +20,8 @@ fn get_observations(
     let mut observations: Vec<f32> = Vec::new();
     // iterate over capsule_handles
     for (_capsule_id, rigid_body_handle) in capsule_handles.iter() {
-        let rigid_body_observation: &RigidBodyObservation = physics_observations.get(rigid_body_handle).unwrap();
+        let rigid_body_observation: &RigidBodyObservation =
+            physics_observations.get(rigid_body_handle).unwrap();
         observations.push(rigid_body_observation.y);
         observations.push(rigid_body_observation.sin);
         observations.push(rigid_body_observation.cos);
@@ -114,11 +117,8 @@ impl RobotTrainer {
         println!("n_weights_and_biases: {}", test_flat.len());
 
         let mean = DVector::from_element(test_flat.len(), 0.0);
-        let sigma = 2.0;
-        let population_size: Option<usize> = None;
 
-        // let mut optimizer = CMAES::new(mean, sigma, population_multiplier);
-        let mut optimizer = CMAES::new(mean, sigma, population_size);
+        let mut optimizer = CMAES::new(mean, SIGMA_INITIAL, POPULATION_SIZE);
         self.population = optimizer.ask();
 
         let pop_size: usize = self.population.len();
@@ -159,15 +159,16 @@ impl RobotTrainer {
             // let mut evaluation: f32 = 1e3
             //     / ((evaluations.iter().sum::<f32>() / evaluations.len() as f32).max(0.0) + 1e-6)
             //         .sqrt();
-            let mut evaluation: f32 = evaluations.iter().sum::<f32>() / evaluations.len() as f32;
-            evaluation *= evaluation * evaluation * 1e0;
+            let mut evaluation: f32 =
+                DISTANCE_WEIGHT * evaluations.iter().sum::<f32>() / evaluations.len() as f32;
+            evaluation *= evaluation * evaluation;
             dist_parts.push(evaluation);
-            let output_part: f32 = robot_physics.get_evaluation_data().output_sum;
+            let output_part: f32 = OUTPUT_WEIGHT * robot_physics.get_evaluation_data().output_sum;
             output_parts.push(output_part);
             evaluation -= output_part;
             // let evaluation_data: EvaluationData = robot_physics.get_evaluation_data();
             // let motion_part: f32 = 1e5 / evaluation_data.motion_sum.max(1e-6).sqrt() as f32;
-            let motion_part: f32 = robot_physics.get_evaluation_data().motion_sum;
+            let motion_part: f32 = MOTION_WEIGHT * robot_physics.get_evaluation_data().motion_sum;
             motion_parts.push(motion_part);
             evaluation += motion_part;
             // fitnesses[i] = evaluation;
@@ -192,7 +193,10 @@ impl RobotTrainer {
         println!("max_motion_part:  {}\n", max_motion_part);
         let min_output_part: f32 = output_parts.iter().cloned().fold(f32::INFINITY, f32::min);
         let mean_output_part: f32 = output_parts.iter().sum::<f32>() / output_parts.len() as f32;
-        let max_output_part: f32 = output_parts.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+        let max_output_part: f32 = output_parts
+            .iter()
+            .cloned()
+            .fold(f32::NEG_INFINITY, f32::max);
         println!("min_output_part:  {}", min_output_part);
         println!("mean_output_part: {}", mean_output_part);
         println!("max_output_part:  {}\n\n", max_output_part);

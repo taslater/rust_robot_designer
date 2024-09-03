@@ -10,6 +10,13 @@ pub const GROUND_FRICTION: f32 = 0.7;
 pub const CAPSULE_FRICTION: f32 = 0.7;
 pub const CAPSULE_DENSITY: f32 = 0.3;
 
+pub const DISTANCE_WEIGHT: f32 = 1.0;
+pub const OUTPUT_WEIGHT: f32 = 1.0;
+pub const MOTION_WEIGHT: f32 = 1.0;
+
+pub const SIGMA_INITIAL: f64 = 1.0;
+pub const POPULATION_SIZE: Option<usize> = Some(120);
+
 
 pub const GROUND_WIDTH: f32 = 1e6;
 pub const GROUND_HEIGHT: f32 = 100.0;
@@ -17,7 +24,6 @@ pub const GROUND_X: f32 = 0.0;
 pub const GROUND_Y: f32 = 400.0 + GROUND_HEIGHT / 2.0;
 
 
-// pub const POPULATION_SIZE: usize = 150;
 pub const STEPS_PER_GENERATION: usize = 3000;
 pub const BEST_RATIO: f32 = 0.1;
 pub const MUTATION_RATE: f64 = 0.05;

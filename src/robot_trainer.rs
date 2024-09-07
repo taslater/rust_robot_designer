@@ -1,12 +1,6 @@
 use crate::constants::{DISTANCE_WEIGHT, MOTION_WEIGHT, OUTPUT_WEIGHT, SIGMA_INITIAL};
 
-// use rayon::prelude::*;
-
 use std::collections::{HashMap, HashSet};
-
-// use std::sync::Arc;
-
-// use parking_lot::RwLock;
 
 use rapier2d::dynamics::RigidBodyHandle;
 
@@ -23,17 +17,16 @@ fn get_observations(
     physics_observations: &HashMap<RigidBodyHandle, RigidBodyObservation>,
     capsule_handles: &HashMap<usize, RigidBodyHandle>,
 ) -> Vec<f32> {
-
     capsule_handles
-        // .par_iter()
         .iter()
         .map(|(_capsule_id, rigid_body_handle)| {
-            let rigid_body_observation: &RigidBodyObservation = match physics_observations.get(rigid_body_handle) {
-                // thread 'main' panicked at src/robot_trainer.rs:45:61:
-                // called `Option::unwrap()` on a `None` value
-                Some(observation) => observation,
-                None => panic!("Failed to get rigid body observation"),
-            };
+            let rigid_body_observation: &RigidBodyObservation =
+                match physics_observations.get(rigid_body_handle) {
+                    // thread 'main' panicked at src/robot_trainer.rs:45:61:
+                    // called `Option::unwrap()` on a `None` value
+                    Some(observation) => observation,
+                    None => panic!("Failed to get rigid body observation"),
+                };
             vec![
                 rigid_body_observation.y,
                 rigid_body_observation.sin,
@@ -47,42 +40,11 @@ fn get_observations(
         .collect()
 }
 
-// fn get_observations(
-//     physics_observations: &HashMap<RigidBodyHandle, RigidBodyObservation>,
-//     capsule_handles: &HashMap<usize, RigidBodyHandle>,
-// ) -> Result<Vec<f32>, String> {
-//     capsule_handles
-//         .iter()
-//         .map(|(_capsule_id, rigid_body_handle)| {
-//             physics_observations
-//                 .get(rigid_body_handle)
-//                 .ok_or_else(|| {
-//                     format!(
-//                         "Failed to get rigid body observation for handle {:?}",
-//                         rigid_body_handle
-//                     )
-//                 })
-//                 .map(|observation| {
-//                     vec![
-//                         observation.y,
-//                         observation.sin,
-//                         observation.cos,
-//                         observation.vel_x,
-//                         observation.vel_y,
-//                         observation.angvel,
-//                     ]
-//                 })
-//         })
-//         .flatten()
-//         .collect()
-// }
-
 fn get_evaluations(
     physics_evaluations: &HashMap<RigidBodyHandle, f32>,
     capsule_handles: &HashMap<usize, RigidBodyHandle>,
 ) -> Vec<f32> {
     capsule_handles
-        // .par_iter()
         .iter()
         .map(|(_capsule_id, rigid_body_handle)| {
             let rigid_body_evaluation = physics_evaluations.get(rigid_body_handle).unwrap();
@@ -92,10 +54,6 @@ fn get_evaluations(
 }
 
 pub struct RobotTrainer {
-    // physics_worlds: Arc<RwLock<Vec<PhysicsWorld>>>,
-    // robots: Arc<RwLock<Vec<Robot>>>,
-    // robots_physics: Arc<RwLock<Vec<RobotPhysics>>>,
-    // brains: Arc<RwLock<Vec<Sequential>>>,
     physics_worlds: Vec<PhysicsWorld>,
     robots: Vec<Robot>,
     robots_physics: Vec<RobotPhysics>,
@@ -123,10 +81,6 @@ impl RobotTrainer {
             robots: Vec::new(),
             robots_physics: Vec::new(),
             brains: Vec::new(),
-            // physics_worlds: Arc::new(RwLock::new(Vec::new())),
-            // robots: Arc::new(RwLock::new(Vec::new())),
-            // robots_physics: Arc::new(RwLock::new(Vec::new())),
-            // brains: Arc::new(RwLock::new(Vec::new())),
             is_playing: false,
             generation_step: 0,
             optimizer: None,
@@ -137,18 +91,12 @@ impl RobotTrainer {
     }
 
     fn clear(&mut self) {
-        self.physics_worlds
-            // .write()
-            // .par_iter_mut()
-            .iter_mut()
-            .for_each(|physics_world| {
-                physics_world.clear();
-            });
-        // self.robots.write().clear();
+        self.physics_worlds.iter_mut().for_each(|physics_world| {
+            physics_world.clear();
+        });
+        self.physics_worlds.clear();
         self.robots.clear();
-        // self.robots_physics.write().clear();
         self.robots_physics.clear();
-        // self.brains.clear();
     }
 
     pub fn init_physics(&mut self, robot: &Robot) {
@@ -223,11 +171,9 @@ impl RobotTrainer {
         let mut motion_parts: Vec<f32> = Vec::with_capacity(self.brains.len());
         let mut output_parts: Vec<f32> = Vec::with_capacity(self.brains.len());
         (0..self.brains.len()).for_each(|i| {
-            // let physics_world: &PhysicsWorld = &self.physics_worlds.read()[i];
             let physics_world: &PhysicsWorld = &self.physics_worlds[i];
             let all_rigid_body_evaluations: HashMap<RigidBodyHandle, f32> =
                 physics_world.get_all_rigid_body_evaluations();
-            // let robot_physics = &self.robots_physics.read()[i];
             let robot_physics = &self.robots_physics[i];
             let evaluations = get_evaluations(
                 &all_rigid_body_evaluations,
@@ -237,76 +183,33 @@ impl RobotTrainer {
                 DISTANCE_WEIGHT * evaluations.iter().sum::<f32>() / evaluations.len() as f32;
             evaluation *= evaluation * evaluation;
             dist_parts.push(evaluation);
-            // dist_parts.write().push(evaluation);
             let output_part: f32 = OUTPUT_WEIGHT * robot_physics.get_evaluation_data().output_sum;
             output_parts.push(output_part);
-            // output_parts.write().push(output_part);
             evaluation -= output_part;
             let motion_part: f32 = MOTION_WEIGHT * robot_physics.get_evaluation_data().motion_sum;
             motion_parts.push(motion_part);
-            // motion_parts.write().push(motion_part);
             evaluation += motion_part;
-            // fitnesses[i] = evaluation;
             fitnesses.push(-1.0 * evaluation);
-            // fitnesses.write().push(-1.0 * evaluation);
         });
         // print min, mean, max of dist_parts
-        let min_dist_part: f32 = dist_parts
-            // .read()
-            .iter()
-            .cloned()
-            .fold(f32::INFINITY, f32::min);
-        // let mean_dist_part: f32 = dist_parts.iter().sum::<f32>() / dist_parts.len() as f32;
-        let mean_dist_part: f32 = dist_parts
-            // .read()
-            .iter()
-            .sum::<f32>()
-            / dist_parts
-                // .read()
-                .len() as f32;
-        // let max_dist_part: f32 = dist_parts.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-        let max_dist_part: f32 = dist_parts
-            // .read()
-            .iter()
-            .cloned()
-            .fold(f32::NEG_INFINITY, f32::max);
+        let min_dist_part: f32 = dist_parts.iter().cloned().fold(f32::INFINITY, f32::min);
+        let mean_dist_part: f32 = dist_parts.iter().sum::<f32>() / dist_parts.len() as f32;
+        let max_dist_part: f32 = dist_parts.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
         println!("min_dist_part:  {}", min_dist_part);
         println!("mean_dist_part: {}", mean_dist_part);
         println!("max_dist_part:  {}\n", max_dist_part);
-        let min_motion_part: f32 = motion_parts
-            // .read()
-            .iter()
-            .cloned()
-            .fold(f32::INFINITY, f32::min);
-        let mean_motion_part: f32 = motion_parts
-            // .read()
-            .iter()
-            .sum::<f32>()
-            / motion_parts
-                // .read()
-                .len() as f32;
+        let min_motion_part: f32 = motion_parts.iter().cloned().fold(f32::INFINITY, f32::min);
+        let mean_motion_part: f32 = motion_parts.iter().sum::<f32>() / motion_parts.len() as f32;
         let max_motion_part: f32 = motion_parts
-            // .read()
             .iter()
             .cloned()
             .fold(f32::NEG_INFINITY, f32::max);
         println!("min_motion_part:  {}", min_motion_part);
         println!("mean_motion_part: {}", mean_motion_part);
         println!("max_motion_part:  {}\n", max_motion_part);
-        let min_output_part: f32 = output_parts
-            // .read()
-            .iter()
-            .cloned()
-            .fold(f32::INFINITY, f32::min);
-        let mean_output_part: f32 = output_parts
-            // .read()
-            .iter()
-            .sum::<f32>()
-            / output_parts
-                // .read()
-                .len() as f32;
+        let min_output_part: f32 = output_parts.iter().cloned().fold(f32::INFINITY, f32::min);
+        let mean_output_part: f32 = output_parts.iter().sum::<f32>() / output_parts.len() as f32;
         let max_output_part: f32 = output_parts
-            // .read()
             .iter()
             .cloned()
             .fold(f32::NEG_INFINITY, f32::max);
@@ -315,12 +218,7 @@ impl RobotTrainer {
         println!("max_output_part:  {}\n\n", max_output_part);
 
         // convert fitnesses to &[f64]
-        // let fitnesses: Vec<f64> = fitnesses.iter().map(|&v| v as f64).collect();
-        let fitnesses: Vec<f64> = fitnesses
-            // .read()
-            .iter()
-            .map(|&v| v as f64)
-            .collect();
+        let fitnesses: Vec<f64> = fitnesses.iter().map(|&v| v as f64).collect();
 
         let optimizer = self.optimizer.as_mut().unwrap();
         optimizer.tell(&self.population, &fitnesses);
@@ -328,32 +226,21 @@ impl RobotTrainer {
         self.population = optimizer.ask();
 
         self.population
-            // .par_iter()
             .iter()
             .enumerate()
             .for_each(|(i, brain_stuff)| {
-                // let brain = &mut self.brains[i];
                 self.brains
-                    // .write()
                     .get_mut(i)
                     .unwrap()
                     .set_weights_and_biases(brain_stuff.iter().map(|&v| v as f64).collect());
             });
 
         // reset the robots
-        (0..self
-            .brains
-            // .read()
-            .len())
-            .for_each(|i| {
-                let robot_physics = &mut self.robots_physics
-            // .write()
-            [i];
-                let mut physics_world = &mut self.physics_worlds
-            // .write()
-            [i];
-                robot_physics.reset_robot(&mut physics_world);
-            });
+        (0..self.brains.len()).for_each(|i| {
+            let robot_physics = &mut self.robots_physics[i];
+            let mut physics_world = &mut self.physics_worlds[i];
+            robot_physics.reset_robot(&mut physics_world);
+        });
     }
 
     fn update(&mut self) {
@@ -361,51 +248,36 @@ impl RobotTrainer {
             return;
         }
 
-        // for i in 0..self.robots.len() {
-        (0..self
-            .robots
-            // .read()
-            .len())
-            .for_each(|i| {
-                let physics_world = &mut self.physics_worlds
-            // .write()
-            [i];
-                let all_positions_velocities_angles: std::collections::HashMap<
-                    RigidBodyHandle,
-                    RigidBodyObservation,
-                > = physics_world.get_all_rigid_body_observations();
-                // let robot = &self.robots[i];
-                let robot = &mut self.robots
-            // .write()
-            [i];
-                let robot_physics = &mut self.robots_physics
-            // .write()
-            [i];
-                let observations = get_observations(
-                    &all_positions_velocities_angles,
-                    &robot_physics.get_capsule_handles(),
+        (0..self.robots.len()).for_each(|i| {
+            let physics_world = &mut self.physics_worlds[i];
+            let all_positions_velocities_angles: std::collections::HashMap<
+                RigidBodyHandle,
+                RigidBodyObservation,
+            > = physics_world.get_all_rigid_body_observations();
+            let robot = &mut self.robots[i];
+            let robot_physics = &mut self.robots_physics[i];
+            let observations = get_observations(
+                &all_positions_velocities_angles,
+                &robot_physics.get_capsule_handles(),
+            );
+            let outputs_mat: nalgebra::Matrix<
+                f64,
+                nalgebra::Dyn,
+                nalgebra::Dyn,
+                nalgebra::VecStorage<f64, nalgebra::Dyn, nalgebra::Dyn>,
+            > = self.brains[i].forward(&observations);
+            // convert outputs_mat to Vec<f32>
+            let outputs: Vec<f32> = outputs_mat.iter().map(|&v| v as f32).collect();
+            for ((joint_id, _joint), output) in robot.get_joints().iter().zip(outputs) {
+                robot_physics.update_evaluation_data_output(output);
+                physics_world.set_impulse_joint_motor_direction(
+                    robot_physics.get_impulse_joint_handle(*joint_id),
+                    output,
                 );
-                let outputs_mat: nalgebra::Matrix<
-                    f64,
-                    nalgebra::Dyn,
-                    nalgebra::Dyn,
-                    nalgebra::VecStorage<f64, nalgebra::Dyn, nalgebra::Dyn>,
-                > = self.brains
-            // .read()
-            [i]
-                    .forward(&observations);
-                // convert outputs_mat to Vec<f32>
-                let outputs: Vec<f32> = outputs_mat.iter().map(|&v| v as f32).collect();
-                for ((joint_id, _joint), output) in robot.get_joints().iter().zip(outputs) {
-                    robot_physics.update_evaluation_data_output(output);
-                    physics_world.set_impulse_joint_motor_direction(
-                        robot_physics.get_impulse_joint_handle(*joint_id),
-                        output,
-                    );
-                }
-                physics_world.step();
-                robot_physics.update_robot_physics(robot, &physics_world);
-            });
+            }
+            physics_world.step();
+            robot_physics.update_robot_physics(robot, &physics_world);
+        });
 
         self.generation_step += 1;
 
@@ -443,11 +315,7 @@ impl RobotTrainer {
 
         egui::Frame::canvas(ui.style()).show(ui, |ui| {
             self.update();
-            for robot in self
-                .robots
-                // .read()
-                .iter()
-            {
+            for robot in self.robots.iter() {
                 robot.draw(
                     ui.painter(),
                     &Vec::new(),

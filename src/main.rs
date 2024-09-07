@@ -100,7 +100,7 @@ impl<'a> TabViewer for RobotDesignerTabViewer<'a> {
                 // self.draw_trainer_ui(ui, &self.robot.borrow());
                 if previous_tab != "Trainer" {
                     println!("Switched to Trainer tab");
-                    self.robot_trainer.init_physics(&self.robot.borrow());
+                    // self.robot_trainer.init_physics(&self.robot.borrow());
                 }
                 self.robot_trainer.ui(ui, &mut self.robot.borrow_mut());
             }

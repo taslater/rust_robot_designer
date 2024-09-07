@@ -11,11 +11,12 @@ pub const CAPSULE_FRICTION: f32 = 0.7;
 pub const CAPSULE_DENSITY: f32 = 0.3;
 
 pub const DISTANCE_WEIGHT: f32 = 1.0;
-pub const OUTPUT_WEIGHT: f32 = 1.0;
-pub const MOTION_WEIGHT: f32 = 1.0;
+pub const OUTPUT_WEIGHT: f32 = 0.1;
+pub const MOTION_WEIGHT: f32 = 2.0;
 
-pub const SIGMA_INITIAL: f64 = 0.5;
-pub const POPULATION_SIZE: Option<usize> = Some(90);
+pub const SIGMA_INITIAL: f64 = 1.0;
+// pub const POPULATION_SIZE: Option<usize> = Some(64);
+// pub const POPULATION_SIZE: Option<usize> = None;
 
 
 pub const GROUND_WIDTH: f32 = 1e6;

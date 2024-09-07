@@ -13,10 +13,28 @@ pub(crate) struct CapsuleData {
     rigid_body_handle: RigidBodyHandle,
     initial_position: Isometry<f32>,
 }
+// debug trait
+impl std::fmt::Debug for CapsuleData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CapsuleData")
+            .field("rigid_body_handle", &self.rigid_body_handle)
+            .field("initial_position", &self.initial_position)
+            .finish()
+    }
+}
 
 struct RobotPhysicsHandles {
     capsule_data: HashMap<usize, CapsuleData>,
     joint_map: HashMap<usize, ImpulseJointHandle>,
+}
+// debug trait
+impl std::fmt::Debug for RobotPhysicsHandles {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RobotPhysicsHandles")
+            .field("capsule_data", &self.capsule_data)
+            .field("joint_map", &self.joint_map)
+            .finish()
+    }
 }
 
 impl RobotPhysicsHandles {
@@ -38,10 +56,29 @@ pub struct EvaluationData {
     pub motion_sum: f32,
     pub output_sum: f32,
 }
+// debug trait
+impl std::fmt::Debug for EvaluationData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EvaluationData")
+            .field("motion_sum", &self.motion_sum)
+            .field("output_sum", &self.output_sum)
+            .finish()
+    }
+}
+
 
 pub struct RobotPhysics {
     handles: RobotPhysicsHandles,
     evaluation_data: EvaluationData
+}
+// debug trait
+impl std::fmt::Debug for RobotPhysics {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RobotPhysics")
+            .field("handles", &self.handles)
+            .field("evaluation_data", &self.evaluation_data)
+            .finish()
+    }
 }
 
 impl RobotPhysics {

@@ -63,6 +63,30 @@ pub struct PhysicsWorld {
     pub prev_rigid_body_velocities: HashMap<RigidBodyHandle, RigidBodyVelocityObservation>,
 }
 
+// debug trait
+impl std::fmt::Debug for PhysicsWorld {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PhysicsWorld")
+            // .field("rigid_body_set", &self.rigid_body_set)
+            // .field("collider_set", &self.collider_set)
+            // .field("impulse_joint_set", &self.impulse_joint_set)
+            // .field("multibody_joint_set", &self.multibody_joint_set)
+            // .field("integration_parameters", &self.integration_parameters)
+            // .field("physics_pipeline", &self.physics_pipeline)
+            // .field("island_manager", &self.island_manager)
+            // .field("broad_phase", &self.broad_phase)
+            // .field("narrow_phase", &self.narrow_phase)
+            // .field("ccd_solver", &self.ccd_solver)
+            // .field("query_pipeline", &self.query_pipeline)
+            // .field("event_handler", &self.event_handler)
+            // .field("prev_rigid_body_velocities", &self.prev_rigid_body_velocities)
+            // none of the preceding fields implement Debug and it would be too verbose to implement them all
+            // so we'll just say that the struct is named PhysicsWorld
+            .field("PhysicsWorld", &"PhysicsWorld")
+            .finish()
+    }
+}
+
 impl PhysicsWorld {
     pub fn new() -> Self {
         let integration_parameters = IntegrationParameters {

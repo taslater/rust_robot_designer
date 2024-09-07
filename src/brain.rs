@@ -38,6 +38,12 @@ struct DenseLayer {
     activation: fn(DMatrix<f64>) -> DMatrix<f64>,
 }
 
+impl std::fmt::Debug for DenseLayer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "DenseLayer")
+    }
+}
+
 impl DenseLayer {
     fn new(
         in_size: usize,
@@ -104,6 +110,12 @@ impl Layer for DenseLayer {
 pub(crate) struct Sequential {
     // layers: Vec<Box<dyn Layer>>,
     layers: Vec<DenseLayer>,
+}
+
+impl std::fmt::Debug for Sequential {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Sequential")
+    }
 }
 
 impl Sequential {

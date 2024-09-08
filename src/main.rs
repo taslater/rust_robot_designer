@@ -4,21 +4,24 @@ use std::rc::Rc;
 use eframe::{egui, NativeOptions};
 use egui_dock::{DockArea, DockState, Style, TabViewer};
 
-mod editor;
-mod model;
-mod robot_simulator;
-mod physics_world;
-mod robot_physics;
-pub mod constants;
-mod robot_trainer;
 pub mod brain;
 pub mod cma_es;
 pub mod cma_es_fns;
+pub mod constants;
+mod editor;
+mod model;
+mod physics_world;
+mod robot_physics;
+pub mod robot_random_search;
+pub mod robot_sim_shared;
+mod robot_simulator;
+mod robot_trainer;
 
 use robot_trainer::RobotTrainer;
 
 use editor::robot_editor::RobotEditor;
 use model::robot::Robot;
+use robot_random_search::RobotRandomSearcher;
 use robot_simulator::RobotSimulator;
 
 struct RobotDesignerApp {
@@ -26,6 +29,7 @@ struct RobotDesignerApp {
     robot_editor: RobotEditor,
     robot_simulator: RobotSimulator,
     robot_trainer: RobotTrainer,
+    robot_random_searcher: RobotRandomSearcher,
     dock_state: DockState<String>,
     current_tab: String,
 }
@@ -36,6 +40,7 @@ impl Default for RobotDesignerApp {
         let dock_state = DockState::new(vec![
             "Editor".to_owned(),
             "Simulator".to_owned(),
+            "Searcher".to_owned(),
             "Trainer".to_owned(),
         ]);
 
@@ -44,6 +49,7 @@ impl Default for RobotDesignerApp {
             robot_editor: RobotEditor::new(),
             robot_simulator: RobotSimulator::new(),
             robot_trainer: RobotTrainer::new(),
+            robot_random_searcher: RobotRandomSearcher::new(),
             dock_state,
             current_tab: "Editor".to_string(),
         }
@@ -54,14 +60,18 @@ impl eframe::App for RobotDesignerApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         DockArea::new(&mut self.dock_state)
             .style(Style::from_egui(ctx.style().as_ref()))
-            .show(ctx, &mut RobotDesignerTabViewer {
-                robot: &mut self.robot,
-                robot_editor: &mut self.robot_editor,
-                robot_simulator: &mut self.robot_simulator,
-                robot_trainer: &mut self.robot_trainer,
+            .show(
                 ctx,
-                current_tab: &mut self.current_tab,
-            });
+                &mut RobotDesignerTabViewer {
+                    robot: &mut self.robot,
+                    robot_editor: &mut self.robot_editor,
+                    robot_simulator: &mut self.robot_simulator,
+                    robot_random_searcher: &mut self.robot_random_searcher,
+                    robot_trainer: &mut self.robot_trainer,
+                    ctx,
+                    current_tab: &mut self.current_tab,
+                },
+            );
     }
 }
 
@@ -69,6 +79,7 @@ struct RobotDesignerTabViewer<'a> {
     robot: &'a mut Rc<RefCell<Robot>>,
     robot_editor: &'a mut RobotEditor,
     robot_simulator: &'a mut RobotSimulator,
+    robot_random_searcher: &'a mut RobotRandomSearcher,
     robot_trainer: &'a mut RobotTrainer,
     ctx: &'a egui::Context,
     current_tab: &'a mut String,
@@ -87,7 +98,8 @@ impl<'a> TabViewer for RobotDesignerTabViewer<'a> {
 
         match &**tab {
             "Editor" => {
-                self.robot_editor.draw_editor_ui(ui, &mut self.robot.borrow_mut(), self.ctx);
+                self.robot_editor
+                    .draw_editor_ui(ui, &mut self.robot.borrow_mut(), self.ctx);
             }
             "Simulator" => {
                 if previous_tab != "Simulator" {
@@ -95,6 +107,13 @@ impl<'a> TabViewer for RobotDesignerTabViewer<'a> {
                     self.robot_simulator.init_physics(&self.robot.borrow());
                 }
                 self.robot_simulator.ui(ui, &mut self.robot.borrow_mut());
+            }
+            "Searcher" => {
+                if previous_tab != "Searcher" {
+                    println!("Switched to Searcher tab");
+                    self.robot_random_searcher.init(&self.robot.borrow());
+                }
+                self.robot_random_searcher.ui(ui);
             }
             "Trainer" => {
                 // self.draw_trainer_ui(ui, &self.robot.borrow());

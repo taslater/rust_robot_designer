@@ -28,6 +28,6 @@ rayon = "1.10.0"
 
 [profile.release]
 strip = "debuginfo"
-# opt-level = 3
-# lto = true
-# codegen-units = 1
+opt-level = 3
+lto = true
+codegen-units = 1

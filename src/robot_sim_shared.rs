@@ -1,4 +1,5 @@
 use crate::brain::Sequential;
+use crate::constants::{DISTANCE_WEIGHT, MOTION_WEIGHT, OUTPUT_WEIGHT};
 use crate::model::robot::Robot;
 use crate::physics_world::{PhysicsWorld, RigidBodyObservation};
 use crate::robot_physics::RobotPhysics;
@@ -54,7 +55,6 @@ impl Simulation {
         }
     }
 
-
     pub fn step(&mut self) {
         let observations = self.get_observations();
         let outputs = self.brain.forward(&observations);
@@ -99,6 +99,73 @@ impl Simulation {
 
 pub trait Evaluator {
     fn evaluate(&self, simulation: &Simulation) -> f32;
+}
+
+pub struct RobotEvaluator;
+
+fn get_evaluations(
+    physics_evaluations: &HashMap<RigidBodyHandle, f32>,
+    capsule_handles: &HashMap<usize, RigidBodyHandle>,
+) -> Vec<f32> {
+    capsule_handles
+        // .par_iter()
+        .iter()
+        .map(|(_capsule_id, rigid_body_handle)| {
+            let rigid_body_evaluation = physics_evaluations.get(rigid_body_handle).unwrap();
+            *rigid_body_evaluation
+        })
+        .collect()
+}
+
+impl Evaluator for RobotEvaluator {
+    fn evaluate(&self, simulation: &Simulation) -> f32 {
+        let all_rigid_body_evaluations: HashMap<RigidBodyHandle, f32> =
+            simulation.physics_world.get_all_rigid_body_evaluations();
+        // let all_rigid_body_evaluations: HashMap<RigidBodyHandle, f32> =
+        //     physics_world.get_all_rigid_body_evaluations();
+        // let robot_physics = simulation.robot_physics;
+        let evaluations = get_evaluations(
+            &all_rigid_body_evaluations,
+            &simulation.robot_physics.get_capsule_handles(),
+        );
+        // let evaluations = simulation
+        //     .robot_physics
+        //     .get_capsule_handles()
+        //     .iter()
+        //     .map(|(_capsule_id, rigid_body_handle)| {
+        //         *all_rigid_body_evaluations.get(rigid_body_handle).unwrap()
+        //     })
+        //     .collect::<Vec<f32>>();
+
+        let evaluation: f32 =
+            DISTANCE_WEIGHT * evaluations.iter().sum::<f32>() / evaluations.len() as f32;
+
+        // evaluation *= evaluation * evaluation;
+
+        // let output_part = OUTPUT_WEIGHT * simulation.robot_physics.get_evaluation_data().output_sum;
+        // evaluation += output_part;
+
+        // let motion_part = MOTION_WEIGHT * simulation.robot_physics.get_evaluation_data().motion_sum;
+        // evaluation -= motion_part;
+
+        -evaluation // Negative because we want to maximize fitness
+    }
+}
+
+pub fn run_simulation_steps(
+    simulation: &mut Simulation,
+    steps: usize,
+    evaluator: &dyn Evaluator,
+) -> f32 {
+    // let mut total_fitness = 0.0;
+
+    for _ in 0..steps {
+        simulation.step();
+        // total_fitness += evaluator.evaluate(simulation);
+    }
+
+    // total_fitness / steps as f32
+    evaluator.evaluate(simulation)
 }
 
 pub struct SearchResult {

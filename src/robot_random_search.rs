@@ -2,7 +2,7 @@ use crate::brain::get_brain;
 use crate::constants::STEPS_PER_GENERATION;
 use crate::model::robot::Robot;
 use crate::physics_world::flat_ground_collider;
-use crate::robot_sim_shared::{get_robot_io_size, Evaluator, SearchResult, Simulation};
+use crate::robot_sim_shared::{get_robot_io_size,  SearchResult, Simulation, RobotEvaluator, run_simulation_steps};
 use egui::{Frame, Ui};
 use std::collections::HashSet;
 
@@ -55,12 +55,10 @@ impl RobotRandomSearcher {
         let new_brain = get_brain(n_inputs, vec![2 * n_inputs, 2 * n_inputs], n_outputs);
 
         let mut simulation = Simulation::new(self.robot.clone().unwrap(), new_brain);
-        simulation
-            .physics_world
-            .add_collider(flat_ground_collider());
+        simulation.physics_world.add_collider(flat_ground_collider());
 
-        let evaluator = RobotEvaluator {};
-        let fitness = self.run_simulation(&mut simulation, &evaluator);
+        let evaluator = RobotEvaluator;
+        let fitness = run_simulation_steps(&mut simulation, STEPS_PER_GENERATION, &evaluator);
 
         if self.best_result.is_none() || fitness > self.best_result.as_ref().unwrap().fitness {
             self.best_result = Some(SearchResult {
@@ -72,16 +70,16 @@ impl RobotRandomSearcher {
         self.current_simulation = Some(simulation);
     }
 
-    fn run_simulation(&self, simulation: &mut Simulation, evaluator: &RobotEvaluator) -> f32 {
-        let mut total_fitness = 0.0;
+    // fn run_simulation(&self, simulation: &mut Simulation, evaluator: &RobotEvaluator) -> f32 {
+    //     let mut total_fitness = 0.0;
 
-        for _ in 0..STEPS_PER_GENERATION {
-            simulation.step();
-            total_fitness += evaluator.evaluate(simulation);
-        }
+    //     for _ in 0..STEPS_PER_GENERATION {
+    //         simulation.step();
+    //         total_fitness += evaluator.evaluate(simulation);
+    //     }
 
-        total_fitness / STEPS_PER_GENERATION as f32
-    }
+    //     total_fitness / STEPS_PER_GENERATION as f32
+    // }
 
     pub fn show_best(&mut self) {
         if let Some(best_result) = &self.best_result {
@@ -132,36 +130,5 @@ impl RobotRandomSearcher {
             }
             ui.ctx().request_repaint();
         });
-    }
-}
-
-struct RobotEvaluator {}
-
-impl Evaluator for RobotEvaluator {
-    fn evaluate(&self, simulation: &Simulation) -> f32 {
-        // This is the same evaluation logic as in RobotTrainer
-        let all_rigid_body_evaluations = simulation.physics_world.get_all_rigid_body_evaluations();
-        let evaluations = simulation
-            .robot_physics
-            .get_capsule_handles()
-            .iter()
-            .map(|(_capsule_id, rigid_body_handle)| {
-                *all_rigid_body_evaluations.get(rigid_body_handle).unwrap()
-            })
-            .collect::<Vec<f32>>();
-
-        let mut evaluation = crate::constants::DISTANCE_WEIGHT * evaluations.iter().sum::<f32>()
-            / evaluations.len() as f32;
-        evaluation *= evaluation * evaluation;
-
-        let output_part = crate::constants::OUTPUT_WEIGHT
-            * simulation.robot_physics.get_evaluation_data().output_sum;
-        evaluation -= output_part;
-
-        let motion_part = crate::constants::MOTION_WEIGHT
-            * simulation.robot_physics.get_evaluation_data().motion_sum;
-        evaluation += motion_part;
-
-        -evaluation // Negative because we want to maximize fitness
     }
 }

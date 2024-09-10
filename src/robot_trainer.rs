@@ -1,13 +1,12 @@
 use crate::brain::get_brain;
 use crate::cma_es::CMAES;
-use crate::constants::{
-    DISTANCE_WEIGHT, MOTION_WEIGHT, OUTPUT_WEIGHT, SIGMA_INITIAL, STEPS_PER_GENERATION,
-};
+use crate::constants::{SIGMA_INITIAL, STEPS_PER_GENERATION};
 use crate::model::robot::Robot;
 use crate::physics_world::flat_ground_collider;
-use crate::robot_sim_shared::{Evaluator, Simulation};
+use crate::robot_sim_shared::{ Simulation, RobotEvaluator, run_simulation_steps};
 use nalgebra::DVector;
 use std::collections::HashSet;
+use egui::Ui;
 
 pub struct RobotTrainer {
     simulations: Vec<Simulation>,
@@ -71,12 +70,10 @@ impl RobotTrainer {
     }
 
     pub fn evaluate_and_update(&mut self) {
-        println!("DEBUG: Starting evaluation and update");
-        let evaluator = RobotEvaluator {};
-        let fitnesses: Vec<f64> = self
-            .simulations
-            .iter()
-            .map(|sim| evaluator.evaluate(sim) as f64)
+        let evaluator = RobotEvaluator;
+        let fitnesses: Vec<f64> = self.simulations
+            .iter_mut()
+            .map(|sim| run_simulation_steps(sim, STEPS_PER_GENERATION, &evaluator) as f64)
             .collect();
 
         let optimizer = self.optimizer.as_mut().unwrap();
@@ -133,7 +130,7 @@ impl RobotTrainer {
         println!("DEBUG: Reset complete");
     }
 
-    pub fn ui(&mut self, ui: &mut egui::Ui, robot: &Robot) {
+    pub fn ui(&mut self, ui: &mut Ui, robot: &Robot) {
         ui.horizontal(|ui| {
             if ui
                 .button(if self.is_playing { "Pause" } else { "Play" })
@@ -169,33 +166,5 @@ impl RobotTrainer {
             }
             ui.ctx().request_repaint();
         });
-    }
-}
-
-struct RobotEvaluator {}
-
-impl Evaluator for RobotEvaluator {
-    fn evaluate(&self, simulation: &Simulation) -> f32 {
-        let all_rigid_body_evaluations = simulation.physics_world.get_all_rigid_body_evaluations();
-        let evaluations = simulation
-            .robot_physics
-            .get_capsule_handles()
-            .iter()
-            .map(|(_capsule_id, rigid_body_handle)| {
-                *all_rigid_body_evaluations.get(rigid_body_handle).unwrap()
-            })
-            .collect::<Vec<f32>>();
-
-        let mut evaluation =
-            DISTANCE_WEIGHT * evaluations.iter().sum::<f32>() / evaluations.len() as f32;
-        evaluation *= evaluation * evaluation;
-
-        let output_part = OUTPUT_WEIGHT * simulation.robot_physics.get_evaluation_data().output_sum;
-        evaluation -= output_part;
-
-        let motion_part = MOTION_WEIGHT * simulation.robot_physics.get_evaluation_data().motion_sum;
-        evaluation += motion_part;
-
-        -evaluation // Negative because we want to maximize fitness
     }
 }

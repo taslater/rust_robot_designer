@@ -1,5 +1,6 @@
 use crate::brain::Sequential;
-use crate::constants::{DISTANCE_WEIGHT, MOTION_WEIGHT, OUTPUT_WEIGHT};
+// use crate::constants::{DISTANCE_WEIGHT, MOTION_WEIGHT, OUTPUT_WEIGHT};
+use crate::constants::DISTANCE_WEIGHT;
 use crate::model::robot::Robot;
 use crate::physics_world::{PhysicsWorld, RigidBodyObservation};
 use crate::robot_physics::RobotPhysics;

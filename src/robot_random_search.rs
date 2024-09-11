@@ -17,7 +17,6 @@ pub struct RobotRandomSearcher {
 
 impl RobotRandomSearcher {
     pub fn new() -> Self {
-        // let (n_inputs, n_outputs) = get_robot_io_size(&robot);
         RobotRandomSearcher {
             robot: None,
             best_result: None,
@@ -60,7 +59,7 @@ impl RobotRandomSearcher {
         let evaluator = RobotEvaluator;
         let fitness = run_simulation_steps(&mut simulation, STEPS_PER_GENERATION, &evaluator);
 
-        if self.best_result.is_none() || fitness > self.best_result.as_ref().unwrap().fitness {
+        if self.best_result.is_none() || fitness < self.best_result.as_ref().unwrap().fitness {
             self.best_result = Some(SearchResult {
                 brain: simulation.brain.clone(),
                 fitness,
@@ -69,17 +68,6 @@ impl RobotRandomSearcher {
 
         self.current_simulation = Some(simulation);
     }
-
-    // fn run_simulation(&self, simulation: &mut Simulation, evaluator: &RobotEvaluator) -> f32 {
-    //     let mut total_fitness = 0.0;
-
-    //     for _ in 0..STEPS_PER_GENERATION {
-    //         simulation.step();
-    //         total_fitness += evaluator.evaluate(simulation);
-    //     }
-
-    //     total_fitness / STEPS_PER_GENERATION as f32
-    // }
 
     pub fn show_best(&mut self) {
         if let Some(best_result) = &self.best_result {

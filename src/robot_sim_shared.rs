@@ -165,7 +165,7 @@ impl Evaluator for RobotEvaluator {
 
         let motion_part =
             shared_config.motion_weight * simulation.robot_physics.get_evaluation_data().motion_sum;
-        evaluation -= motion_part;
+        evaluation += motion_part;
 
         -evaluation // Negative because we want to maximize fitness
     }

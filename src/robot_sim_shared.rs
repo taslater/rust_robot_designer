@@ -1,11 +1,24 @@
 use crate::brain::Sequential;
-// use crate::constants::{DISTANCE_WEIGHT, MOTION_WEIGHT, OUTPUT_WEIGHT};
-use crate::constants::DISTANCE_WEIGHT;
 use crate::model::robot::Robot;
 use crate::physics_world::{PhysicsWorld, RigidBodyObservation};
 use crate::robot_physics::RobotPhysics;
+use crate::shared_config::SharedConfig;
 use rapier2d::dynamics::RigidBodyHandle;
 use std::collections::HashMap;
+
+pub fn add_shared_ui(ui: &mut egui::Ui, shared_config: &mut SharedConfig) {
+    // let shared_config: &mut shared_config::SharedConfig = &mut self.shared_config.lock().unwrap();
+
+    ui.add(egui::Slider::new(&mut shared_config.output_weight, -1.0..=1.0).text("Output weight"));
+    ui.add(egui::Slider::new(&mut shared_config.motion_weight, -1.0..=1.0).text("Motion weight"));
+    ui.add(
+        egui::Slider::new(&mut shared_config.distance_weight, -1.0..=1.0).text("Distance weight"),
+    );
+    ui.add(
+        egui::Slider::new(&mut shared_config.steps_per_generation, 1..=4000)
+            .text("Steps per generation"),
+    );
+}
 
 pub fn get_robot_io_size(robot: &Robot) -> (usize, usize) {
     let mut test_robot = robot.clone();
@@ -40,10 +53,11 @@ pub struct Simulation {
     pub robot_physics: RobotPhysics,
     pub physics_world: PhysicsWorld,
     pub brain: Sequential,
+    shared_config: SharedConfig,
 }
 
 impl Simulation {
-    pub fn new(mut robot: Robot, brain: Sequential) -> Self {
+    pub fn new(mut robot: Robot, brain: Sequential, shared_config: SharedConfig) -> Self {
         let mut physics_world = PhysicsWorld::new();
         let mut robot_physics = RobotPhysics::new();
         robot_physics.build_robot(&mut robot, &mut physics_world);
@@ -53,6 +67,7 @@ impl Simulation {
             robot_physics,
             physics_world,
             brain,
+            shared_config,
         }
     }
 
@@ -120,6 +135,7 @@ fn get_evaluations(
 
 impl Evaluator for RobotEvaluator {
     fn evaluate(&self, simulation: &Simulation) -> f32 {
+        let shared_config: &SharedConfig = &simulation.shared_config;
         let all_rigid_body_evaluations: HashMap<RigidBodyHandle, f32> =
             simulation.physics_world.get_all_rigid_body_evaluations();
         // let all_rigid_body_evaluations: HashMap<RigidBodyHandle, f32> =
@@ -138,16 +154,18 @@ impl Evaluator for RobotEvaluator {
         //     })
         //     .collect::<Vec<f32>>();
 
-        let evaluation: f32 =
-            DISTANCE_WEIGHT * evaluations.iter().sum::<f32>() / evaluations.len() as f32;
+        let mut evaluation: f32 = shared_config.distance_weight * evaluations.iter().sum::<f32>()
+            / evaluations.len() as f32;
 
         // evaluation *= evaluation * evaluation;
 
-        // let output_part = OUTPUT_WEIGHT * simulation.robot_physics.get_evaluation_data().output_sum;
-        // evaluation += output_part;
+        let output_part =
+            shared_config.output_weight * simulation.robot_physics.get_evaluation_data().output_sum;
+        evaluation += output_part;
 
-        // let motion_part = MOTION_WEIGHT * simulation.robot_physics.get_evaluation_data().motion_sum;
-        // evaluation -= motion_part;
+        let motion_part =
+            shared_config.motion_weight * simulation.robot_physics.get_evaluation_data().motion_sum;
+        evaluation -= motion_part;
 
         -evaluation // Negative because we want to maximize fitness
     }

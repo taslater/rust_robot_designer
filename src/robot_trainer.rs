@@ -1,12 +1,12 @@
 use crate::brain::get_brain;
 use crate::cma_es::CMAES;
-use crate::constants::{SIGMA_INITIAL, STEPS_PER_GENERATION};
 use crate::model::robot::Robot;
 use crate::physics_world::flat_ground_collider;
-use crate::robot_sim_shared::{ Simulation, RobotEvaluator, run_simulation_steps};
+use crate::robot_sim_shared::{add_shared_ui, run_simulation_steps, RobotEvaluator, Simulation};
+use crate::shared_config::SharedConfigRef;
+use egui::Ui;
 use nalgebra::DVector;
 use std::collections::HashSet;
-use egui::Ui;
 
 pub struct RobotTrainer {
     simulations: Vec<Simulation>,
@@ -16,10 +16,12 @@ pub struct RobotTrainer {
     generation_step: usize,
     use_default_population_size: bool,
     custom_population_size: usize,
+    sigma_initial: f64,
+    shared_config: SharedConfigRef,
 }
 
 impl RobotTrainer {
-    pub fn new() -> Self {
+    pub fn new(shared_config: SharedConfigRef) -> Self {
         RobotTrainer {
             simulations: Vec::new(),
             optimizer: None,
@@ -28,6 +30,8 @@ impl RobotTrainer {
             generation_step: 0,
             use_default_population_size: true,
             custom_population_size: 64,
+            sigma_initial: 1.0,
+            shared_config,
         }
     }
 
@@ -36,7 +40,11 @@ impl RobotTrainer {
         self.simulations.clear();
 
         let test_robot = robot.clone();
-        let mut test_simulation = Simulation::new(test_robot, get_brain(0, vec![], 0));
+        let mut test_simulation = Simulation::new(
+            test_robot,
+            get_brain(0, vec![], 0),
+            self.shared_config.lock().unwrap().clone(),
+        );
         let n_inputs = test_simulation.get_observations().len();
         let n_outputs = robot.joints_count();
 
@@ -50,13 +58,17 @@ impl RobotTrainer {
             Some(self.custom_population_size)
         };
 
-        let mut optimizer = CMAES::new(mean, SIGMA_INITIAL, population_size);
+        let mut optimizer = CMAES::new(mean, self.sigma_initial, population_size);
         self.population = optimizer.ask();
 
         for brain_params in &self.population {
             let mut brain = test_brain.clone();
             brain.set_weights_and_biases(brain_params.iter().map(|&v| v as f64).collect());
-            let mut simulation = Simulation::new(robot.clone(), brain);
+            let mut simulation = Simulation::new(
+                robot.clone(),
+                brain,
+                self.shared_config.lock().unwrap().clone(),
+            );
             simulation
                 .physics_world
                 .add_collider(flat_ground_collider());
@@ -71,9 +83,16 @@ impl RobotTrainer {
 
     pub fn evaluate_and_update(&mut self) {
         let evaluator = RobotEvaluator;
-        let fitnesses: Vec<f64> = self.simulations
+        let fitnesses: Vec<f64> = self
+            .simulations
             .iter_mut()
-            .map(|sim| run_simulation_steps(sim, STEPS_PER_GENERATION, &evaluator) as f64)
+            .map(|sim| {
+                run_simulation_steps(
+                    sim,
+                    self.shared_config.lock().unwrap().steps_per_generation,
+                    &evaluator,
+                ) as f64
+            })
             .collect();
 
         let optimizer = self.optimizer.as_mut().unwrap();
@@ -104,7 +123,7 @@ impl RobotTrainer {
 
         self.generation_step += 1;
 
-        if self.generation_step >= STEPS_PER_GENERATION {
+        if self.generation_step >= self.shared_config.lock().unwrap().steps_per_generation {
             println!("DEBUG: Generation complete, evaluating and updating");
             self.generation_step = 0;
             self.evaluate_and_update();
@@ -145,14 +164,6 @@ impl RobotTrainer {
             }
         });
 
-        ui.checkbox(
-            &mut self.use_default_population_size,
-            "Use default population size",
-        );
-        ui.add(
-            egui::Slider::new(&mut self.custom_population_size, 1..=1000).text("Population size"),
-        );
-
         egui::Frame::canvas(ui.style()).show(ui, |ui| {
             self.update();
             for simulation in &self.simulations {
@@ -166,5 +177,17 @@ impl RobotTrainer {
             }
             ui.ctx().request_repaint();
         });
+
+        ui.checkbox(
+            &mut self.use_default_population_size,
+            "Use default population size",
+        );
+        ui.add(
+            egui::Slider::new(&mut self.custom_population_size, 1..=1000).text("Population size"),
+        );
+        // initial sigma
+        ui.add(egui::Slider::new(&mut self.sigma_initial, 0.0..=2.0).text("Initial sigma"));
+
+        add_shared_ui(ui, &mut self.shared_config.lock().unwrap());
     }
 }

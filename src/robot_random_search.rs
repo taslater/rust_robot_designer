@@ -1,8 +1,12 @@
 use crate::brain::get_brain;
-use crate::constants::STEPS_PER_GENERATION;
+// use crate::constants::STEPS_PER_GENERATION;
 use crate::model::robot::Robot;
 use crate::physics_world::flat_ground_collider;
-use crate::robot_sim_shared::{get_robot_io_size,  SearchResult, Simulation, RobotEvaluator, run_simulation_steps};
+use crate::robot_sim_shared::{
+    add_shared_ui, get_robot_io_size, run_simulation_steps, RobotEvaluator, SearchResult,
+    Simulation,
+};
+use crate::shared_config::SharedConfigRef;
 use egui::{Frame, Ui};
 use std::collections::HashSet;
 
@@ -13,10 +17,11 @@ pub struct RobotRandomSearcher {
     show_best: bool,
     n_inputs: Option<usize>,
     n_outputs: Option<usize>,
+    shared_config: SharedConfigRef,
 }
 
 impl RobotRandomSearcher {
-    pub fn new() -> Self {
+    pub fn new(shared_config: SharedConfigRef) -> Self {
         RobotRandomSearcher {
             robot: None,
             best_result: None,
@@ -24,6 +29,7 @@ impl RobotRandomSearcher {
             show_best: false,
             n_inputs: None,
             n_outputs: None,
+            shared_config,
         }
     }
 
@@ -53,11 +59,21 @@ impl RobotRandomSearcher {
 
         let new_brain = get_brain(n_inputs, vec![2 * n_inputs, 2 * n_inputs], n_outputs);
 
-        let mut simulation = Simulation::new(self.robot.clone().unwrap(), new_brain);
-        simulation.physics_world.add_collider(flat_ground_collider());
+        let mut simulation = Simulation::new(
+            self.robot.clone().unwrap(),
+            new_brain,
+            self.shared_config.lock().unwrap().clone(),
+        );
+        simulation
+            .physics_world
+            .add_collider(flat_ground_collider());
 
         let evaluator = RobotEvaluator;
-        let fitness = run_simulation_steps(&mut simulation, STEPS_PER_GENERATION, &evaluator);
+        let fitness = run_simulation_steps(
+            &mut simulation,
+            self.shared_config.lock().unwrap().steps_per_generation,
+            &evaluator,
+        );
 
         if self.best_result.is_none() || fitness < self.best_result.as_ref().unwrap().fitness {
             self.best_result = Some(SearchResult {
@@ -71,8 +87,11 @@ impl RobotRandomSearcher {
 
     pub fn show_best(&mut self) {
         if let Some(best_result) = &self.best_result {
-            let mut simulation =
-                Simulation::new(self.robot.clone().unwrap(), best_result.brain.clone());
+            let mut simulation = Simulation::new(
+                self.robot.clone().unwrap(),
+                best_result.brain.clone(),
+                self.shared_config.lock().unwrap().clone(),
+            );
             simulation
                 .physics_world
                 .add_collider(flat_ground_collider());
@@ -118,5 +137,7 @@ impl RobotRandomSearcher {
             }
             ui.ctx().request_repaint();
         });
+
+        add_shared_ui(ui, &mut self.shared_config.lock().unwrap());
     }
 }

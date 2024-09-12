@@ -16,13 +16,15 @@ pub mod robot_random_search;
 pub mod robot_sim_shared;
 mod robot_simulator;
 mod robot_trainer;
-
-use robot_trainer::RobotTrainer;
+mod shared_config;
 
 use editor::robot_editor::RobotEditor;
 use model::robot::Robot;
 use robot_random_search::RobotRandomSearcher;
 use robot_simulator::RobotSimulator;
+use robot_trainer::RobotTrainer;
+use shared_config::create_shared_config;
+
 
 struct RobotDesignerApp {
     robot: Rc<RefCell<Robot>>,
@@ -43,13 +45,14 @@ impl Default for RobotDesignerApp {
             "Searcher".to_owned(),
             "Trainer".to_owned(),
         ]);
+        let shared_config = create_shared_config();
 
         RobotDesignerApp {
             robot: robot.clone(),
             robot_editor: RobotEditor::new(),
             robot_simulator: RobotSimulator::new(),
-            robot_trainer: RobotTrainer::new(),
-            robot_random_searcher: RobotRandomSearcher::new(),
+            robot_trainer: RobotTrainer::new(shared_config.clone()),
+            robot_random_searcher: RobotRandomSearcher::new(shared_config.clone()),
             dock_state,
             current_tab: "Editor".to_string(),
         }

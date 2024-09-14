@@ -6,8 +6,8 @@ pub const TARGET_VELOCITY: f32 =  10_000.0 * PHYSICS_SCALE; // 1e6; // Velocity 
 
 pub const GROUND_RESTITUTION: f32 = 0.0;
 pub const CAPSULE_RESTITUTION: f32 = 0.0;
-pub const GROUND_FRICTION: f32 = 0.7;
-pub const CAPSULE_FRICTION: f32 = 0.7;
+pub const GROUND_FRICTION: f32 = 0.8;
+pub const CAPSULE_FRICTION: f32 = 0.8;
 pub const CAPSULE_DENSITY: f32 = 0.3;
 
 
@@ -17,6 +17,3 @@ pub const GROUND_X: f32 = 0.0;
 pub const GROUND_Y: f32 = 400.0 + GROUND_HEIGHT / 2.0;
 
 
-pub const BEST_RATIO: f32 = 0.1;
-pub const MUTATION_RATE: f64 = 0.05;
-pub const MUTATION_AMOUNT: f64 = 0.3;

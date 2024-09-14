@@ -312,13 +312,4 @@ impl PhysicsWorld {
             })
             .collect()
     }
-
-    pub fn get_all_rigid_body_evaluations(&self) -> HashMap<RigidBodyHandle, f32> {
-        self.rigid_body_set
-            .iter()
-            .map(|(rigid_body_handle, rigid_body)| {
-                (rigid_body_handle, rigid_body.position().translation.x)
-            })
-            .collect()
-    }
 }

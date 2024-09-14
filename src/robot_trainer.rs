@@ -1,12 +1,14 @@
 use crate::brain::get_brain;
 use crate::cma_es::CMAES;
+use crate::evaluation::CompositeEvaluator;
 use crate::model::robot::Robot;
 use crate::physics_world::flat_ground_collider;
-use crate::robot_sim_shared::{add_shared_ui, run_simulation_steps, RobotEvaluator, Simulation};
+use crate::robot_sim_shared::{add_shared_ui, run_simulation_steps, Simulation};
 use crate::shared_config::SharedConfigRef;
 use egui::Ui;
 use nalgebra::DVector;
 use std::collections::HashSet;
+use std::sync::Arc;
 
 pub struct RobotTrainer {
     simulations: Vec<Simulation>,
@@ -18,6 +20,7 @@ pub struct RobotTrainer {
     custom_population_size: usize,
     sigma_initial: f64,
     shared_config: SharedConfigRef,
+    evaluator: CompositeEvaluator,
 }
 
 impl RobotTrainer {
@@ -30,8 +33,9 @@ impl RobotTrainer {
             generation_step: 0,
             use_default_population_size: true,
             custom_population_size: 64,
-            sigma_initial: 1.0,
+            sigma_initial: 2.0,
             shared_config,
+            evaluator: CompositeEvaluator::new(),
         }
     }
 
@@ -43,7 +47,7 @@ impl RobotTrainer {
         let mut test_simulation = Simulation::new(
             test_robot,
             get_brain(0, vec![], 0),
-            self.shared_config.lock().unwrap().clone(),
+            self.shared_config.clone(),
         );
         let n_inputs = test_simulation.get_observations().len();
         let n_outputs = robot.joints_count();
@@ -67,7 +71,8 @@ impl RobotTrainer {
             let mut simulation = Simulation::new(
                 robot.clone(),
                 brain,
-                self.shared_config.lock().unwrap().clone(),
+                // self.shared_config.lock().unwrap().clone(),
+                Arc::clone(&self.shared_config),
             );
             simulation
                 .physics_world
@@ -82,18 +87,19 @@ impl RobotTrainer {
     }
 
     pub fn evaluate_and_update(&mut self) {
-        let evaluator = RobotEvaluator;
+        let steps_per_generation = self.shared_config.lock().unwrap().steps_per_generation;
+        println!(
+            "DEBUG: Starting evaluation and update, steps per generation: {}",
+            steps_per_generation
+        );
         let fitnesses: Vec<f64> = self
             .simulations
             .iter_mut()
             .map(|sim| {
-                run_simulation_steps(
-                    sim,
-                    self.shared_config.lock().unwrap().steps_per_generation,
-                    &evaluator,
-                ) as f64
+                run_simulation_steps(sim, steps_per_generation, &self.evaluator) as f64
             })
             .collect();
+        println!("DEBUG: All evaluations complete");
 
         let optimizer = self.optimizer.as_mut().unwrap();
         optimizer.tell(&self.population, &fitnesses);
@@ -186,8 +192,11 @@ impl RobotTrainer {
             egui::Slider::new(&mut self.custom_population_size, 1..=1000).text("Population size"),
         );
         // initial sigma
-        ui.add(egui::Slider::new(&mut self.sigma_initial, 0.0..=2.0).text("Initial sigma"));
+        ui.add(egui::Slider::new(&mut self.sigma_initial, 0.0..=4.0).text("Initial sigma"));
 
-        add_shared_ui(ui, &mut self.shared_config.lock().unwrap());
+        {
+            let mut shared_config = self.shared_config.lock().unwrap();
+            add_shared_ui(ui, &mut shared_config);
+        }
     }
 }

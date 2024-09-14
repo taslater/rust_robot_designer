@@ -1,8 +1,9 @@
 use crate::brain::Sequential;
+use crate::evaluation::CompositeEvaluator;
 use crate::model::robot::Robot;
 use crate::physics_world::{PhysicsWorld, RigidBodyObservation};
 use crate::robot_physics::RobotPhysics;
-use crate::shared_config::SharedConfig;
+use crate::shared_config::{SharedConfig, SharedConfigRef};
 use rapier2d::dynamics::RigidBodyHandle;
 use std::collections::HashMap;
 
@@ -53,11 +54,11 @@ pub struct Simulation {
     pub robot_physics: RobotPhysics,
     pub physics_world: PhysicsWorld,
     pub brain: Sequential,
-    shared_config: SharedConfig,
+    shared_config: SharedConfigRef,
 }
 
 impl Simulation {
-    pub fn new(mut robot: Robot, brain: Sequential, shared_config: SharedConfig) -> Self {
+    pub fn new(mut robot: Robot, brain: Sequential, shared_config: SharedConfigRef) -> Self {
         let mut physics_world = PhysicsWorld::new();
         let mut robot_physics = RobotPhysics::new();
         robot_physics.build_robot(&mut robot, &mut physics_world);
@@ -108,83 +109,27 @@ impl Simulation {
             if let Some(joint_handle) = joint.impulse_joint_handle {
                 self.physics_world
                     .set_impulse_joint_motor_direction(joint_handle, output as f32);
+                self.robot_physics.update_evaluation_data_output(output as f32);
             }
         }
-    }
-}
-
-pub trait Evaluator {
-    fn evaluate(&self, simulation: &Simulation) -> f32;
-}
-
-pub struct RobotEvaluator;
-
-fn get_evaluations(
-    physics_evaluations: &HashMap<RigidBodyHandle, f32>,
-    capsule_handles: &HashMap<usize, RigidBodyHandle>,
-) -> Vec<f32> {
-    capsule_handles
-        // .par_iter()
-        .iter()
-        .map(|(_capsule_id, rigid_body_handle)| {
-            let rigid_body_evaluation = physics_evaluations.get(rigid_body_handle).unwrap();
-            *rigid_body_evaluation
-        })
-        .collect()
-}
-
-impl Evaluator for RobotEvaluator {
-    fn evaluate(&self, simulation: &Simulation) -> f32 {
-        let shared_config: &SharedConfig = &simulation.shared_config;
-        let all_rigid_body_evaluations: HashMap<RigidBodyHandle, f32> =
-            simulation.physics_world.get_all_rigid_body_evaluations();
-        // let all_rigid_body_evaluations: HashMap<RigidBodyHandle, f32> =
-        //     physics_world.get_all_rigid_body_evaluations();
-        // let robot_physics = simulation.robot_physics;
-        let evaluations = get_evaluations(
-            &all_rigid_body_evaluations,
-            &simulation.robot_physics.get_capsule_handles(),
-        );
-        // let evaluations = simulation
-        //     .robot_physics
-        //     .get_capsule_handles()
-        //     .iter()
-        //     .map(|(_capsule_id, rigid_body_handle)| {
-        //         *all_rigid_body_evaluations.get(rigid_body_handle).unwrap()
-        //     })
-        //     .collect::<Vec<f32>>();
-
-        let mut evaluation: f32 = shared_config.distance_weight * evaluations.iter().sum::<f32>()
-            / evaluations.len() as f32;
-
-        // evaluation *= evaluation * evaluation;
-
-        let output_part =
-            shared_config.output_weight * simulation.robot_physics.get_evaluation_data().output_sum;
-        evaluation += output_part;
-
-        let motion_part =
-            shared_config.motion_weight * simulation.robot_physics.get_evaluation_data().motion_sum;
-        evaluation += motion_part;
-
-        -evaluation // Negative because we want to maximize fitness
     }
 }
 
 pub fn run_simulation_steps(
     simulation: &mut Simulation,
     steps: usize,
-    evaluator: &dyn Evaluator,
+    evaluator: &CompositeEvaluator,
 ) -> f32 {
-    // let mut total_fitness = 0.0;
-
     for _ in 0..steps {
         simulation.step();
-        // total_fitness += evaluator.evaluate(simulation);
     }
 
-    // total_fitness / steps as f32
-    evaluator.evaluate(simulation)
+    // Evaluate the final state
+    evaluator.evaluate(
+        &simulation.physics_world,
+        &simulation.robot_physics,
+        &simulation.shared_config.lock().unwrap(),
+    )
 }
 
 pub struct SearchResult {

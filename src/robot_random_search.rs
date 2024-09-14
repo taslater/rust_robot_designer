@@ -1,10 +1,10 @@
 use crate::brain::get_brain;
 // use crate::constants::STEPS_PER_GENERATION;
+use crate::evaluation::CompositeEvaluator;
 use crate::model::robot::Robot;
 use crate::physics_world::flat_ground_collider;
 use crate::robot_sim_shared::{
-    add_shared_ui, get_robot_io_size, run_simulation_steps, RobotEvaluator, SearchResult,
-    Simulation,
+    add_shared_ui, get_robot_io_size, run_simulation_steps, SearchResult, Simulation,
 };
 use crate::shared_config::SharedConfigRef;
 use egui::{Frame, Ui};
@@ -18,6 +18,7 @@ pub struct RobotRandomSearcher {
     n_inputs: Option<usize>,
     n_outputs: Option<usize>,
     shared_config: SharedConfigRef,
+    evaluator: CompositeEvaluator,
 }
 
 impl RobotRandomSearcher {
@@ -30,6 +31,7 @@ impl RobotRandomSearcher {
             n_inputs: None,
             n_outputs: None,
             shared_config,
+            evaluator: CompositeEvaluator::new(),
         }
     }
 
@@ -62,17 +64,17 @@ impl RobotRandomSearcher {
         let mut simulation = Simulation::new(
             self.robot.clone().unwrap(),
             new_brain,
-            self.shared_config.lock().unwrap().clone(),
+            self.shared_config.clone(),
         );
         simulation
             .physics_world
             .add_collider(flat_ground_collider());
 
-        let evaluator = RobotEvaluator;
+        // let evaluator = RobotEvaluator;
         let fitness = run_simulation_steps(
             &mut simulation,
             self.shared_config.lock().unwrap().steps_per_generation,
-            &evaluator,
+            &self.evaluator,
         );
 
         if self.best_result.is_none() || fitness < self.best_result.as_ref().unwrap().fitness {
@@ -90,7 +92,7 @@ impl RobotRandomSearcher {
             let mut simulation = Simulation::new(
                 self.robot.clone().unwrap(),
                 best_result.brain.clone(),
-                self.shared_config.lock().unwrap().clone(),
+                self.shared_config.clone(),
             );
             simulation
                 .physics_world

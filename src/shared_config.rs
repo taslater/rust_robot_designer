@@ -11,10 +11,10 @@ pub struct SharedConfig {
 impl Default for SharedConfig {
     fn default() -> Self {
         SharedConfig {
-            output_weight: 0.1,
-            motion_weight: 0.3,
+            output_weight: -0.2,
+            motion_weight: 0.5,
             distance_weight: 1.0,
-            steps_per_generation: 500,
+            steps_per_generation: 1000,
         }
     }
 }

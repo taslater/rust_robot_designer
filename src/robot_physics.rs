@@ -1,6 +1,6 @@
 use crate::constants::{
-    CAPSULE_FRICTION, CAPSULE_RESTITUTION, MOTOR_DAMPING, MOTOR_MAX_FORCE, PHYSICS_SCALE,
-    TARGET_VELOCITY, CAPSULE_DENSITY,
+    CAPSULE_DENSITY, CAPSULE_FRICTION, CAPSULE_RESTITUTION, MOTOR_DAMPING, MOTOR_MAX_FORCE,
+    PHYSICS_SCALE, TARGET_VELOCITY,
 };
 use crate::model::robot::Robot;
 use crate::physics_world::{to_physics_coords, to_rendering_coords, PhysicsWorld};
@@ -55,6 +55,7 @@ impl RobotPhysicsHandles {
 pub struct EvaluationData {
     pub motion_sum: f32,
     pub output_sum: f32,
+    pub max_relative_rotation: f32,
 }
 // debug trait
 impl std::fmt::Debug for EvaluationData {
@@ -66,10 +67,9 @@ impl std::fmt::Debug for EvaluationData {
     }
 }
 
-
 pub struct RobotPhysics {
     handles: RobotPhysicsHandles,
-    evaluation_data: EvaluationData
+    evaluation_data: EvaluationData,
 }
 // debug trait
 impl std::fmt::Debug for RobotPhysics {
@@ -88,6 +88,7 @@ impl RobotPhysics {
             evaluation_data: EvaluationData {
                 motion_sum: 0.0,
                 output_sum: 0.0,
+                max_relative_rotation: 0.0,
             },
         }
     }
@@ -97,8 +98,7 @@ impl RobotPhysics {
     }
 
     pub fn get_capsule_handles(&self) -> HashMap<usize, RigidBodyHandle> {
-        self
-            .handles
+        self.handles
             .capsule_data
             .iter()
             .map(|(id, data)| (*id, data.rigid_body_handle))
@@ -106,10 +106,7 @@ impl RobotPhysics {
     }
 
     pub fn get_impulse_joint_handle(&self, joint_id: usize) -> ImpulseJointHandle {
-        *self.handles
-            .joint_map
-            .get(&joint_id)
-            .unwrap()
+        *self.handles.joint_map.get(&joint_id).unwrap()
     }
 
     pub fn clear(&mut self) {
@@ -237,10 +234,7 @@ impl RobotPhysics {
                     .build();
                 let impulse_joint_handle =
                     physics_world.add_impulse_joint(body_handle1, body_handle2, revolute_joint);
-                joint_map.insert(
-                    joint_props.0,
-                    impulse_joint_handle,
-                );
+                joint_map.insert(joint_props.0, impulse_joint_handle);
                 joint.set_handle(impulse_joint_handle);
             }
         }
@@ -254,15 +248,15 @@ impl RobotPhysics {
         for (_capsule_id, capsule_data) in self.handles.capsule_data.iter() {
             if let Some(rigid_body) =
                 physics_world.get_rigid_body_mut(capsule_data.rigid_body_handle)
-            {                rigid_body.set_position(capsule_data.initial_position, true);
+            {
+                rigid_body.set_position(capsule_data.initial_position, true);
                 rigid_body.set_linvel(vector![0.0, 0.0], true);
                 rigid_body.set_angvel(0.0, true);
                 rigid_body.reset_forces(true);
-                
             }
         }
         self.evaluation_data.motion_sum = 0.0;
-        self.evaluation_data.output_sum = 0.0;
+        // self.evaluation_data.output_sum = 0.0;
     }
 
     pub fn update_evaluation_data_output(&mut self, output: f32) {
@@ -275,8 +269,10 @@ impl RobotPhysics {
             if let Some(capsule) = robot.get_capsule_mut(*capsule_id) {
                 if let Some(body) = physics_world.get_rigid_body(capsule_data.rigid_body_handle) {
                     let physics_position = body.position().translation;
-                    let rotation =
-                        body.position().rotation.angle() + capsule.get_initial_rotation_offset();
+                    let relative_rotation = body.position().rotation.angle();
+                    self.evaluation_data.max_relative_rotation =
+                        self.evaluation_data.max_relative_rotation.max(relative_rotation.abs());
+                    let rotation = relative_rotation + capsule.get_initial_rotation_offset();
                     let rendering_position =
                         to_rendering_coords(pos2(physics_position.x, physics_position.y));
                     let rendering_half_length = capsule.half_length();
@@ -290,9 +286,7 @@ impl RobotPhysics {
 
         // Update the robot's joint positions
         for (joint_id, impulse_joint_handle) in self.handles.joint_map.iter() {
-            if let Some(impulse_joint) =
-                physics_world.get_impulse_joint(*impulse_joint_handle)
-            {
+            if let Some(impulse_joint) = physics_world.get_impulse_joint(*impulse_joint_handle) {
                 if let Some(joint) = robot.get_joint_mut(*joint_id) {
                     let body1_pos = physics_world
                         .get_rigid_body(impulse_joint.body1)

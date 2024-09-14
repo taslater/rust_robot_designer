@@ -9,6 +9,7 @@ pub mod cma_es;
 pub mod cma_es_fns;
 pub mod constants;
 mod editor;
+mod evaluation;
 mod model;
 mod physics_world;
 mod robot_physics;

@@ -1,6 +1,6 @@
 use crate::cma_es_fns::*;
 use nalgebra::{DMatrix, DVector};
-use rand::prelude::*;
+use rand::{Rng, rng}; // Import rng function instead of thread_rng
 use rand_distr::StandardNormal;
 
 pub struct CMAES {
@@ -25,7 +25,7 @@ pub struct CMAES {
     invsqrt_c: DMatrix<f64>,
     eigen_eval: usize,
     counteval: usize,
-    rng: ThreadRng,
+    rng: rand::rngs::ThreadRng,  // Keep this type the same
 }
 
 impl CMAES {
@@ -73,7 +73,7 @@ impl CMAES {
             invsqrt_c,
             eigen_eval: 0,
             counteval: 0,
-            rng: thread_rng(),
+            rng: rng(),  // Use rng() instead of thread_rng()
         }
     }
 
@@ -106,9 +106,7 @@ impl CMAES {
                 >,
             > = x.row(i);
             // convert row Matrix to owned DVector
-            population.push(
-                DVector::from_iterator(x.ncols(), row.iter().cloned()),
-            );
+            population.push(DVector::from_iterator(x.ncols(), row.iter().cloned()));
         }
         population
     }

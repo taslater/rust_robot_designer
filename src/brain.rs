@@ -1,8 +1,6 @@
 use nalgebra::DMatrix;
-// rand gaussian
-// use rand::distributions::Standard;
-// use meansd::MeanSD;
-use rand::prelude::*;
+// Import rng function instead of thread_rng
+use rand::rng;
 use rand_distr::{Distribution, Normal};
 use std::any::Any;
 
@@ -51,12 +49,8 @@ impl DenseLayer {
         activation: fn(DMatrix<f64>) -> DMatrix<f64>,
         dist: Normal<f64>,
     ) -> Self {
-        // get random weights from dist
-        let weights =
-            DMatrix::<f64>::zeros(out_size, in_size).map(|_| dist.sample(&mut thread_rng()));
-        // println!("{:?}", test_weights);
-        // let weights = DMatrix::<f64>::new_random(out_size, in_size);
-        // println!("{:?}", weights);
+        // Use rng() instead of thread_rng()
+        let weights = DMatrix::<f64>::zeros(out_size, in_size).map(|_| dist.sample(&mut rng()));
         let bias = DMatrix::<f64>::zeros(out_size, 1);
         DenseLayer {
             weights,
@@ -145,12 +139,10 @@ impl Sequential {
         for dense_layer in &mut self.layers {
             let layer_size = dense_layer.weights.nrows() * dense_layer.weights.ncols()
                 + dense_layer.bias.nrows();
-            dense_layer
-                .set_weights_and_biases(flat[flat_index..flat_index + layer_size].to_vec());
+            dense_layer.set_weights_and_biases(flat[flat_index..flat_index + layer_size].to_vec());
             flat_index += layer_size;
         }
     }
-
 }
 
 // Activation functions

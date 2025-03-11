@@ -55,7 +55,7 @@ pub struct PhysicsWorld {
     pub integration_parameters: IntegrationParameters,
     pub physics_pipeline: PhysicsPipeline,
     pub island_manager: IslandManager,
-    pub broad_phase: BroadPhase,
+    pub broad_phase: DefaultBroadPhase,
     pub narrow_phase: NarrowPhase,
     pub ccd_solver: CCDSolver,
     pub query_pipeline: QueryPipeline,
@@ -96,7 +96,7 @@ impl PhysicsWorld {
         // integration_parameters.switch_to_small_steps_pgs_solver();
         let physics_pipeline = PhysicsPipeline::new();
         let island_manager = IslandManager::new();
-        let broad_phase = BroadPhase::new();
+        let broad_phase = DefaultBroadPhase::new();
         let narrow_phase = NarrowPhase::new();
         let ccd_solver = CCDSolver::new();
         let query_pipeline = QueryPipeline::new();
@@ -222,7 +222,7 @@ impl PhysicsWorld {
         impulse_joint_handle: ImpulseJointHandle,
         motor_direction: f32,
     ) {
-        if let Some(impulse_joint) = self.impulse_joint_set.get_mut(impulse_joint_handle) {
+        if let Some(impulse_joint) = self.impulse_joint_set.get_mut(impulse_joint_handle, true) {
             impulse_joint.data.set_motor_velocity(
                 JointAxis::AngX,
                 TARGET_VELOCITY * motor_direction,

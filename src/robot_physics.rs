@@ -5,9 +5,11 @@ use crate::constants::{
 use crate::model::robot::Robot;
 use crate::physics_world::{to_physics_coords, to_rendering_coords, PhysicsWorld};
 use egui::{pos2, Pos2};
-use nalgebra::{point, vector};
 use rapier2d::prelude::*;
 use std::collections::HashMap;
+
+// Import nalgebra explicitly with a qualified path to avoid ambiguity
+use ::nalgebra::{point, vector};
 
 pub(crate) struct CapsuleData {
     rigid_body_handle: RigidBodyHandle,

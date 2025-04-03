@@ -95,9 +95,7 @@ impl RobotTrainer {
         let fitnesses: Vec<f64> = self
             .simulations
             .iter_mut()
-            .map(|sim| {
-                run_simulation_steps(sim, steps_per_generation, &self.evaluator) as f64
-            })
+            .map(|sim| run_simulation_steps(sim, steps_per_generation, &self.evaluator) as f64)
             .collect();
         println!("DEBUG: All evaluations complete");
 

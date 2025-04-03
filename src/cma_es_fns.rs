@@ -111,9 +111,9 @@ pub fn sort_population_rs(
 
 pub fn update_mean_rs(
     x_sorted: &DMatrix<f64>, // Nxλ
-    m: &DVector<f64>, // Nx1
-    weights: &DVector<f64>, // λx1
-    σ: f64, // scalar
+    m: &DVector<f64>,        // Nx1
+    weights: &DVector<f64>,  // λx1
+    σ: f64,                  // scalar
 ) -> (DVector<f64>, DVector<f64>) {
     // println!("x_sorted shape: {:?}", x_sorted.shape());
     // println!("m shape: {:?}", m.shape());

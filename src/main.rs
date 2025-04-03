@@ -26,7 +26,6 @@ use robot_simulator::RobotSimulator;
 use robot_trainer::RobotTrainer;
 use shared_config::create_shared_config;
 
-
 struct RobotDesignerApp {
     robot: Rc<RefCell<Robot>>,
     robot_editor: RobotEditor,

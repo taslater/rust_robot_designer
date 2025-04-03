@@ -1,9 +1,9 @@
+use crate::constants::PHYSICS_SCALE;
 use eframe::egui;
 use egui::epaint::Shape;
 use egui::{pos2, Color32, Pos2, Stroke};
 use geo::relate::Relate;
 use geo::{polygon, Polygon};
-use crate::constants::PHYSICS_SCALE;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Capsule {

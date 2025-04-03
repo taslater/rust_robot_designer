@@ -168,7 +168,6 @@ impl JointEditor {
             } else if (self.selected_capsules.len() == 1)
                 // && (robot.are_capsules_already_joined(self.selected_capsules[0], capsule_id))
                 && (robot.are_capsules_already_joined(*self.selected_capsules.iter().next().unwrap(), capsule_id))
-
             {
                 println!("The capsules are already joined.");
                 return;

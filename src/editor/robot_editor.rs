@@ -146,8 +146,14 @@ impl RobotEditor {
     ) {
         match self.editing_part {
             EditingPart::Capsule => {
-                self.capsule_editor
-                    .update(ui, ctx, &mut self.editing_state, pointer_pos, response, robot);
+                self.capsule_editor.update(
+                    ui,
+                    ctx,
+                    &mut self.editing_state,
+                    pointer_pos,
+                    response,
+                    robot,
+                );
             }
             EditingPart::Joint => {
                 self.joint_editor

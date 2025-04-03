@@ -34,7 +34,8 @@ impl RobotSimulator {
     pub fn init_physics(&mut self, robot: &Robot) {
         self.clear();
         self.robot = robot.clone();
-        self.robot_physics.build_robot(&mut self.robot, &mut self.physics_world);
+        self.robot_physics
+            .build_robot(&mut self.robot, &mut self.physics_world);
         let _ = self.physics_world.add_collider(flat_ground_collider());
     }
 
@@ -54,7 +55,8 @@ impl RobotSimulator {
             .update_joint_motor_directions(motor_directions, &mut self.physics_world);
         self.physics_world.step();
 
-        self.robot_physics.update_robot_physics(&mut self.robot, &self.physics_world);
+        self.robot_physics
+            .update_robot_physics(&mut self.robot, &self.physics_world);
     }
 
     pub fn toggle_playback(&mut self) {

@@ -272,8 +272,10 @@ impl RobotPhysics {
                 if let Some(body) = physics_world.get_rigid_body(capsule_data.rigid_body_handle) {
                     let physics_position = body.position().translation;
                     let relative_rotation = body.position().rotation.angle();
-                    self.evaluation_data.max_relative_rotation =
-                        self.evaluation_data.max_relative_rotation.max(relative_rotation.abs());
+                    self.evaluation_data.max_relative_rotation = self
+                        .evaluation_data
+                        .max_relative_rotation
+                        .max(relative_rotation.abs());
                     let rotation = relative_rotation + capsule.get_initial_rotation_offset();
                     let rendering_position =
                         to_rendering_coords(pos2(physics_position.x, physics_position.y));

@@ -109,7 +109,8 @@ impl Simulation {
             if let Some(joint_handle) = joint.impulse_joint_handle {
                 self.physics_world
                     .set_impulse_joint_motor_direction(joint_handle, output as f32);
-                self.robot_physics.update_evaluation_data_output(output as f32);
+                self.robot_physics
+                    .update_evaluation_data_output(output as f32);
             }
         }
     }
